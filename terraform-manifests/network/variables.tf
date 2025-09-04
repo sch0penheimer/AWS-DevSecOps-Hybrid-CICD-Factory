@@ -1,3 +1,12 @@
+################################################################################
+#  File: network/variables.tf
+#  Description: Variable definitions for the network module
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 04/09/2025
+#
+#  Purpose: Parameterizes network configuration for flexibility and reuse.
+################################################################################
+
 variable "project_name" {}
 
 variable "availability_zones" {}

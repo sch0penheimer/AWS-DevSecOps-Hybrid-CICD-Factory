@@ -1,6 +1,17 @@
+#######################################################################
+#  File: network/main.tf
+#  Description: Network infrastructure provisioning for the AWS DevSecOps
+#               Hybrid CI/CD Platform.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 04/09/2025
+#
+#  Purpose: Provisions VPC, subnets, route tables, and security groups 
+#           for the platform.
+#######################################################################
+
 /**    
-  To resolve your public IP for SSH (for personal use + fetches the RUNNER'S public
-  IP, so be careful from where you run Terraform)
+  To resolve your public IP for SSH (for personal use + fetches the RUNNER'S 
+  public IP, so be careful from where you run Terraform)
 **/
 data "http" "my_ip" {
   url = "https://checkip.amazonaws.com/"
@@ -10,15 +21,15 @@ resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { 
+  tags = {
     Name = "${var.project_name}-custom-vpc" 
   }
 }
 
-resource "aws_internet_gateway" "igw" {
+resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags = { 
-    Name = "${var.project_name}-igw"
+    Name = "${var.project_name}-internet-gateway"
   }
 }
 
@@ -52,21 +63,38 @@ resource "aws_subnet" "private" {
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
+  /**
+    No need to add the default in-vpc default route:
+      route {
+        cidr_block = "${var.vpc_cidr}"
+        gateway_id = local
+      }
+  **/
+
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.main.id
   }
 
   tags = {
-    Name        = "${var.project_name}-public-rt"
+    Name        = "${var.project_name}-public-route-table"
   }
 }
 
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
+  /**
+    No need to add the default in-vpc default route:
+      route {
+        cidr_block = "${var.vpc_cidr}"
+        gateway_id = local
+      }
+    Also, it's the ONLY route in a private subnet's route table.
+  **/
+
   tags = {
-    Name        = "${var.project_name}-private-rt"
+    Name        = "${var.project_name}-private-route-table"
   }
 }
 
@@ -85,7 +113,7 @@ resource "aws_route_table_association" "private" {
 }
 
 resource "aws_security_group" "alb" {
-  name_prefix = "${var.project_name}-alb-sg"
+  name_prefix = "${var.project_name}-app-loadbalancer-security-group"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -112,18 +140,26 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name        = "${var.project_name}-alb-sg"
+    Name        = "${var.project_name}-app-loadbalancer-security-group"
   }
 }
 
 resource "aws_security_group" "ecs" {
-  name_prefix = "${var.project_name}-ecs-sg"
+  name_prefix = "${var.project_name}-ecs-security-group"
   vpc_id      = aws_vpc.main.id
 
   ingress {
     description     = "HTTP from ALB"
     from_port       = 80
     to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description     = "HTTPS from ALB"
+    from_port       = 443
+    to_port         = 443
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -152,6 +188,6 @@ resource "aws_security_group" "ecs" {
   }
 
   tags = {
-    Name        = "${var.project_name}-ecs-sg"
+    Name        = "${var.project_name}-ecs-security-group"
   }
 }

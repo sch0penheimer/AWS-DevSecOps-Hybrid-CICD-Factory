@@ -1,3 +1,12 @@
+################################################################################
+#  File: global_variables.tf
+#  Description: Global variable definitions for the AWS DevSecOps Hybrid CI/CD Platform.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 04/09/2025
+#
+#  Purpose: Centralizes project-wide variables for consistent configuration across modules.
+################################################################################
+
 variable "project_name" {
   description     = "aws-devsecops-cicd-platform"
   type            = string
