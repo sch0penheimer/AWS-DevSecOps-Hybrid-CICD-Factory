@@ -1,3 +1,13 @@
+################################################################################
+#  File: storage/main.tf
+#  Description: Storage resource provisioning for the AWS DevSecOps Hybrid CI/CD Platform.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 04/09/2025
+#
+#  Purpose: Provisions S3 buckets and corresponding policies for secure artifact and
+#           lambda storage.
+################################################################################
+
 resource "aws_s3_bucket" "artifact_store" {
   bucket = "${var.project_name}-artifact-bucket"
   tags = {
@@ -99,4 +109,12 @@ resource "aws_s3_bucket_policy" "lambda_bucket_policy" {
       }
     ]
   })
+}
+
+resource "aws_s3_object" "lambda_package" {
+  bucket = aws_s3_bucket.lambda_bucket.id
+  key    = "lambda/lambda.zip"
+  source = "${path.module}/lambda.zip"
+  etag   = filemd5("${path.module}/lambda.zip")
+  content_type = "application/zip"
 }
