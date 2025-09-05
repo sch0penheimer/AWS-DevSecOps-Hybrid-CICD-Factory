@@ -1,20 +1,33 @@
+
+##-- Module Imported Variables --##
+
+variable "project_name" {}
+
 variable "vpc_id" {}
+
 variable "private_subnet_ids" {}
+
 variable "public_subnet_ids" {}
+
 variable "alb_security_group_id" {}
+
 variable "ecs_security_group_id" {}
 
+#------------------------------------------------------#
+
+##-- Module Specific Variables --##
+
 variable "instance_types" {
-  description = "EC2 instance types for Staging/Prod environments"
+  description = "EC2 instance types for the staging/prod environments"
   type = map(string)
   default = {
-    staging    = "t3.micro"
-    production = "t3.micro"
+    staging    = "t2.micro"
+    production = "t2.micro"
   }
 }
 
 variable "ecs_cluster_names" {
-  description = "ECS cluster names (Staging/Prod clusters)"
+  description = "ECS cluster names"
   type = map(string)
   default = {
     staging    = "staging-cluster"
@@ -23,7 +36,7 @@ variable "ecs_cluster_names" {
 }
 
 variable "asg_config" {
-  description = "Auto Scaling Group configuration for Staging/Prod environments"
+  description = "Auto Scaling Groups configuration"
   type = map(object({
     min_size         = number
     max_size         = number
