@@ -1,0 +1,32 @@
+{
+  "severity_mappings": {
+    "custom_scale": {
+      "CRITICAL": 5,
+      "BLOCKER": 5,
+      "HIGH": 4,
+      "MAJOR": 3,
+      "MEDIUM": 2,
+      "LOW": 1,
+      "INFORMATIONAL": 1,
+      "NEGLIGIBLE": 1,
+      "UNKNOWN": 1
+    }
+  },
+  "finding_types": {
+    "ECR": "ECR vulnerability scan",
+    "SNYK": "SNYK dependency scan", 
+    "OWASP-Zap": "OWASP ZAP dynamic security scan"
+  },
+  "finding_titles": {
+    "ECR": "AWS ECR StaticCode Analysis",
+    "SNYK": "Snyk StaticCode Analysis",
+    "OWASP-Zap": "OWASP ZAP DynamicCode Analysis"
+  },
+  "remediation_urls": {
+    "cloudformation": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html",
+    "owasp": "https://owasp.org/www-project-top-ten/",
+    "snyk": "https://docs.snyk.io/getting-started"
+  },
+  "excluded_severities": ["Negligible", "Unknown", "INFORMATIONAL"],
+  "default_report_url": "https://aws.amazon.com"
+}
