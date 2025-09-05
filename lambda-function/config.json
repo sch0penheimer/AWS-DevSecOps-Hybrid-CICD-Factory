@@ -27,6 +27,6 @@
     "owasp": "https://owasp.org/www-project-top-ten/",
     "snyk": "https://docs.snyk.io/getting-started"
   },
-  "excluded_severities": ["Negligible", "Unknown", "INFORMATIONAL"],
+  "excluded_severities": ["NEGLIGIBLE", "UNKNOWN", "INFORMATIONAL"],
   "default_report_url": "https://aws.amazon.com"
 }

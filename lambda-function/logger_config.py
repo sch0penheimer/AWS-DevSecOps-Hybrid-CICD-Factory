@@ -10,30 +10,16 @@
 import logging
 from datetime import datetime
 
-class CustomFormatter(logging.Formatter):
-    def format(self, record):
-        timestamp = datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        record.timestamp = timestamp
-        record.project = "AWS-DevSecOps-Hybrid-CICD-Platform"
-        return super().format(record)
-
 def create_component_logger(component_name):
-    """
-        Creates and returns a logger with customized format for the specified component
-    """
     logger = logging.getLogger(component_name)
     
-    if logger.handlers:
-        return logger
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter(
+            f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [{component_name}] [%(levelname)s] - %(message)s'
+        ))
+        logger.addHandler(handler)
+        logger.propagate = False
         
-    logger.setLevel(logging.DEBUG)
-    
-    handler = logging.StreamHandler()
-    formatter = CustomFormatter(
-        f'[%(timestamp)s] [%(project)s] [{component_name}] [%(levelname)s] - %(message)s'
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.propagate = False
-    
     return logger

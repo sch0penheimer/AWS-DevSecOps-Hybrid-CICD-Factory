@@ -20,65 +20,37 @@ logger = create_component_logger("securityhub-client")
 securityhub = boto3.client('securityhub')
 
 ##-- Finding Import Function --##
-def import_security_finding(count,
-                           account_id, 
-                           region, 
-                           created_at, 
-                           source_repository,
-                           source_branch,
-                           source_commitid,
-                           build_id, 
-                           report_url, 
-                           finding_id, 
-                           generator_id,
-                           normalized_severity, 
-                           severity,
-                           finding_type, 
-                           finding_title, 
-                           finding_description, 
-                           remediation_url):
-    """
-        Imports a finding to the AWS Security Hub.
-    """
-    logger.debug(f"Importing finding {finding_id} to Security Hub")
+def import_security_finding(finding_data):
+    logger.debug(f"Importing finding {finding_data['id']} to Security Hub")
     
-    new_findings = []
-    new_findings.append({
+    finding = {
         "SchemaVersion": "2018-10-08",
-        "Id": finding_id,
-        "ProductArn": config.get_product_arn(region, account_id),
-        "GeneratorId": generator_id,
-        "AwsAccountId": account_id,
-        "Types": [
-            f"Software and Configuration Checks/AWS Security Best Practices/{finding_type}"
-        ],
-        "CreatedAt": created_at,
-        "UpdatedAt": created_at,
-        "Severity": {
-            "Normalized": normalized_severity,
-        },
-        "Title":  f"{count}-{finding_title}",
-        "Description": f"{finding_description}",
-        'Remediation': {
-            'Recommendation': {
-                'Text': 'For directions on how to fix this issue, see the documentation and best practices',
-                'Url': remediation_url
+        "Id": finding_data['id'],
+        "ProductArn": config.get_product_arn(finding_data['region'], finding_data['account_id']),
+        "GeneratorId": finding_data['generator_id'],
+        "AwsAccountId": finding_data['account_id'],
+        "Types": [f"Software and Configuration Checks/AWS Security Best Practices/{finding_data['type']}"],
+        "CreatedAt": finding_data['created_at'],
+        "UpdatedAt": finding_data['created_at'],
+        "Severity": {"Normalized": finding_data['normalized_severity']},
+        "Title": finding_data['title'],
+        "Description": finding_data['description'],
+        "Remediation": {
+            "Recommendation": {
+                "Text": "See documentation for remediation steps",
+                "Url": finding_data['remediation_url']
             }
         },
-        'SourceUrl': report_url,
-        'Resources': [
-            {
-                'Id': build_id,
-                'Type': "CodeBuild",
-                'Partition': "aws",
-                'Region': region
-            }
-        ],
-    })
+        "SourceUrl": finding_data['report_url'],
+        "Resources": [{
+            "Id": finding_data['build_id'],
+            "Type": "CodeBuild",
+            "Partition": "aws",
+            "Region": finding_data['region']
+        }]
+    }
     
-    response = securityhub.batch_import_findings(Findings=new_findings)
+    response = securityhub.batch_import_findings(Findings=[finding])
     if response['FailedCount'] > 0:
-        logger.error(f"Failed to import finding {finding_id}: {response}")
-        raise Exception(f"Failed to import finding: {response['FailedCount']}")
-    else:
-        logger.info(f"Successfully imported finding {finding_id} to the Security Hub")
+        raise Exception(f"Failed to import finding: {response}")
+    logger.info(f"Imported finding {finding_data['id']}")
