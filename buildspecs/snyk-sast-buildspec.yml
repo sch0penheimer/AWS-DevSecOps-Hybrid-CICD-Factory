@@ -1,0 +1,82 @@
+################################################################################
+#  File: buildspecs/snyk-sast-buildspec.yml
+#  Description: Buildspec for the Snyk SAST CodeBuild project.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 08/09/2025
+#
+#  Purpose: 
+#    This buildspec performs Static Application Security Testing (SAST) and 
+#    container vulnerability scanning using Snyk to identify security issues
+#    in application dependencies and container images before pushing to the image registry.
+################################################################################
+
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Install Phase begun."
+      - echo "Installing Snyk:"
+      - npm install -g snyk
+      - echo "Snyk version: $(snyk --version)"
+    finally:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of the install phase (always runs)."
+
+  pre_build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase started"
+      - echo "Starting Docker Daemon:"
+      - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 --storage-driver=overlay&
+      - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
+      - echo "Docker daemon ready."
+      - echo "Logging into ECR:"
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+  
+  build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase started"
+      - cd $CODEBUILD_SRC_DIR
+      - echo "Building Docker image:"
+      - docker build . -t $ECR_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION -f $DOCKERFILE_NAME
+      - echo "Authenticating with Snyk:"
+      - snyk config set api=$SNYK_API_KEY
+      - echo "Starting Snyk container scan:"
+      - snyk container test $ECR_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION --file=$DOCKERFILE_NAME --json --severity-threshold=high > snyk-results.json || echo "Snyk SAST Scan completed with findings"
+      - echo "Tagging image for ECR:"
+      - docker tag $ECR_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $ECR_REPO_URI:latest
+
+  post_build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Post-build phase started"
+      - echo "Wrapp "
+      - |
+        jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"SNYK\", \
+        \"createdAt\": $(date +\"%Y-%m-%dT%H:%M:%S.%3NZ\"), \"source_repository\": env.CODEBUILD_SOURCE_REPO_URL, \
+        \"source_branch\": env.CODEBUILD_SOURCE_VERSION, \
+        \"build_id\": env.CODEBUILD_BUILD_ID, \
+        \"source_commitid\": env.CODEBUILD_RESOLVED_SOURCE_VERSION, \
+        \"report\": . }" snyk-results.json > payload.json
+      
+      - echo "Evaluating Snyk SAST security scan results:"
+      - |
+        if (grep -E 'high|critical' payload.json); then 
+          echo "CRITICAL/HIGH vulnerabilities found."
+          aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
+          echo "- Scan results uploaded to Security Hub. Build FAILING due to security violations."
+          echo "- Image NOT pushed to ECR due to security issues."
+          exit 1
+        elif (grep -E 'medium|low' payload.json); then
+          echo "Medium/Low vulnerabilities found but within acceptable threshold"
+          aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
+          echo "- Pushing image to ECR:"
+          docker push $ECR_REPO_URI:latest
+        else
+          echo "- No vulnerabilities found."
+          echo "- Pushing image to ECR:"
+          docker push $ECR_REPO_URI:latest
+        fi
+      
+      - printf '[{"name":"webapp","imageUri":"%s"}]' $ECR_REPO_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION > imagedefinitions.json
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Snyk SAST analysis completed"
+artifacts:
+  type: zip
+  files: '**/*'
