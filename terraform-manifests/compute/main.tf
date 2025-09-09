@@ -210,6 +210,70 @@ resource "aws_autoscaling_group" "production" {
 }
 
 #-----------------------------------------------------------#
+#-- ECS Task Definitions (Prod / Staging) --#
+resource "aws_ecs_task_definition" "staging" {
+  family                   = "devsecops-platform-app-staging-task-def"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["EC2"]
+  cpu                      = "512"
+  memory                   = "1024"
+  container_definitions    = jsonencode([
+    {
+      name      = "app"
+      image     = "<your-app-image-uri>:<tag>"                #--- App image URI ---#
+      essential = true
+      portMappings = [{ containerPort = 80, hostPort = 80 }]
+    }
+  ])
+}
+
+resource "aws_ecs_task_definition" "prod" {
+  family                   = "devsecops-platform-app-prod-task-def"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["EC2"]
+  cpu                      = "512"
+  memory                   = "1024"
+  container_definitions    = jsonencode([
+    {
+      name      = "app"
+      image     = "<your-app-image-uri>:<tag>"                #--- App image URI ---#
+      essential = true
+      portMappings = [{ containerPort = 80, hostPort = 80 }]
+    },                                
+    {                                                         #- Falco Sidecar -#
+      name      = "falco"
+      image     = "falco/falco:latest"
+      essential = false
+      privileged = true
+      mountPoints = [
+        { sourceVolume = "docker-socket", containerPath = "/host/var/run/docker.sock" }
+      ]
+    }
+  ])
+  volume {
+    name = "docker-socket"
+    host_path { path = "/var/run/docker.sock" }
+  }
+}
+
+#-- ECS Services (Prod / Staging) --#
+resource "aws_ecs_service" "staging" {
+  name            = "devsecops-platform-app-staging-service"
+  cluster         = aws_ecs_cluster.staging.id
+  task_definition = aws_ecs_task_definition.staging.arn
+  desired_count   = 1
+  launch_type     = "EC2"
+}
+
+resource "aws_ecs_service" "prod" {
+  name            = "devsecops-platform-app-prod-service"
+  cluster         = aws_ecs_cluster.prod.id
+  task_definition = aws_ecs_task_definition.prod.arn
+  desired_count   = 2
+  launch_type     = "EC2"
+}
+
+#-----------------------------------------------------------#
 
 #-- Application Load Balancer for Production --##
 resource "aws_lb" "production" {
