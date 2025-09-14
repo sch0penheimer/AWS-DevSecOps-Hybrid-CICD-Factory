@@ -55,3 +55,24 @@ output "ecr_repository_name" {
   description = "Name of the ECR repository"
   value       = aws_ecr_repository.app_repo.name
 }
+
+#-- ECS Service Outputs --#
+output "staging_service_name" {
+  description = "Name of the staging ECS service"
+  value       = aws_ecs_service.staging.name
+}
+
+output "staging_service_arn" {
+  description = "ARN of the staging ECS service"
+  value       = aws_ecs_service.staging.id
+}
+
+output "production_service_name" {
+  description = "Name of the production ECS service"
+  value       = aws_ecs_service.production.name
+}
+
+output "production_service_arn" {
+  description = "ARN of the production ECS service"
+  value       = aws_ecs_service.production.id
+}

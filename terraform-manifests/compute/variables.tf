@@ -1,4 +1,3 @@
-
 ##-- Module Imported Variables --##
 
 variable "project_name" {}
@@ -14,11 +13,10 @@ variable "alb_security_group_id" {}
 variable "ecs_security_group_id" {}
 
 #------------------------------------------------------#
-
 ##-- Module Specific Variables --##
 
 variable "instance_types" {
-  description = "EC2 instance types for the staging/prod environments"
+  description = "EC2 instance types for the staging/prod ECS environments"
   type = map(string)
   default = {
     staging    = "t2.micro"

@@ -213,14 +213,14 @@ resource "aws_autoscaling_group" "production" {
 #-- ECS Task Definitions (Prod / Staging) --#
 resource "aws_ecs_task_definition" "staging" {
   family                   = "devsecops-platform-app-staging-task-def"
-  network_mode             = "awsvpc"
+  network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   cpu                      = "512"
   memory                   = "1024"
   container_definitions    = jsonencode([
     {
       name      = "app"
-      image     = "<your-app-image-uri>:<tag>"                #--- App image URI ---#
+      image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
       essential = true
       portMappings = [{ containerPort = 80, hostPort = 80 }]
     }
@@ -229,18 +229,18 @@ resource "aws_ecs_task_definition" "staging" {
 
 resource "aws_ecs_task_definition" "prod" {
   family                   = "devsecops-platform-app-prod-task-def"
-  network_mode             = "awsvpc"
+  network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   cpu                      = "512"
   memory                   = "1024"
   container_definitions    = jsonencode([
     {
       name      = "app"
-      image     = "<your-app-image-uri>:<tag>"                #--- App image URI ---#
+      image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
       essential = true
       portMappings = [{ containerPort = 80, hostPort = 80 }]
     },                                
-    {                                                         #- Falco Sidecar -#
+    {
       name      = "falco"
       image     = "falco/falco:latest"
       essential = false
@@ -271,10 +271,17 @@ resource "aws_ecs_service" "prod" {
   task_definition = aws_ecs_task_definition.prod.arn
   desired_count   = 2
   launch_type     = "EC2"
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.production.arn
+    container_name   = "app"
+    container_port   = 80
+  }
+
+  depends_on = [aws_lb_listener.production]
 }
 
 #-----------------------------------------------------------#
-
 #-- Application Load Balancer for Production --##
 resource "aws_lb" "production" {
   name               = "${var.project_name}-prod-alb"
