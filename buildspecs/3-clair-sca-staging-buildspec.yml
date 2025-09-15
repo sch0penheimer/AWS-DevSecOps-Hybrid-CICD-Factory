@@ -37,7 +37,7 @@ phases:
   build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase started."
-      #- Wait for ECR scan to complete -#
+      #- Wait for ECR's Clair scan to complete -#
       - |
         stat="IN_PROGRESS"
         while [ "$stat" != "COMPLETE" ]; do
