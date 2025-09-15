@@ -1,0 +1,98 @@
+################################################################################
+#  File: buildspecs/4-owasp-zap-buildspec.yml
+#  Description: Buildspec for the OWASP ZAP CodeBuild project.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 14/09/2025
+#
+#  Purpose: 
+#    This buildspec performs Dynamic Application Security Testing (DAST) using OWASP ZAP
+#    to identify security vulnerabilities in the running application in the staging
+#    environment before promoting to production.
+################################################################################
+
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Install Phase begun."
+      - echo "Updating package lists:"
+      - apt-get update
+      - echo "Installing system packages:"
+      - apt-get -y install jq python3-pip python3-dev curl
+      - echo "Installing/Upgrading the AWS CLI:"
+      - pip3 install --upgrade awscli
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation phase completed successfully."
+    finally:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of the install phase (always runs)."
+
+  pre_build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase started."
+      - echo "Validating OWASP ZAP configuration:"
+      - echo "OWASP ZAP URL: $OWASP_ZAP_URL"
+      - echo "Application URL for DAST: $APPLICATION_URL"
+      - echo "Testing connectivity to OWASP ZAP instance:"
+      - curl -f "$OWASP_ZAP_URL/JSON/core/view/version/?apikey=$OWASP_ZAP_API_KEY" || exit 1
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase completed successfully."
+
+  build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase started."
+      - echo "Starting OWASP ZAP Active Scan:"
+      - scanid=$(curl "$OWASP_ZAP_URL/JSON/ascan/action/scan/?apikey=$OWASP_ZAP_API_KEY&recurse=true&inScopeOnly=&scanPolicyName=&method=&postData=&contextId=&url=$APPLICATION_URL" | jq -r '.scan')
+      - echo "OWASP ZAP Scan ID: $scanid"
+      - echo "Waiting for scan to complete:"
+      - |
+        stat=50;
+        while [ "$stat" != "100" ]; do
+          stat=$(curl "$OWASP_ZAP_URL/JSON/ascan/view/status/?apikey=$OWASP_ZAP_API_KEY&scanId=$scanid" | jq -r '.status');
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP scan status: $stat%"
+          if [ "$stat" = "100" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP analysis completed successfully."
+            break
+          fi
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP analysis in progress..."
+          sleep 10;
+        done
+      - echo "Generating scan report:"
+      - curl "$OWASP_ZAP_URL/OTHER/core/other/jsonreport/?apikey=$OWASP_ZAP_API_KEY" | jq . > zap-scan-results.json
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase completed successfully."
+
+  post_build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Post-build phase started."
+      - echo "Analyzing scan results:"
+      - high_alerts=$(curl "$OWASP_ZAP_URL/JSON/alert/view/alertsSummary/?apikey=$OWASP_ZAP_API_KEY&baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.High')
+      - medium_alerts=$(curl "$OWASP_ZAP_URL/JSON/alert/view/alertsSummary/?apikey=$OWASP_ZAP_API_KEY&baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Medium')
+      - echo "High severity alerts: $high_alerts"
+      - echo "Medium severity alerts: $medium_alerts"
+      - echo "Preparing Security Hub payload:"
+      - |
+        jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"OWASP-ZAP\", \
+        \"createdAt\": \"$(date +'%Y-%m-%dT%H:%M:%S.%3NZ')\", \"source_repository\": env.CODEBUILD_SOURCE_REPO_URL, \
+        \"source_branch\": env.CODEBUILD_SOURCE_VERSION, \
+        \"build_id\": env.CODEBUILD_BUILD_ID, \
+        \"source_commitid\": env.CODEBUILD_RESOLVED_SOURCE_VERSION, \
+        \"report\": . }" zap-scan-results.json > payload.json
+      - echo "Evaluating OWASP ZAP DAST security scan results:"
+      - |
+        if [ "$high_alerts" != "0" ]; then
+          echo "CRITICAL/HIGH vulnerabilities found in DAST scan."
+          aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
+          echo "- Scan results uploaded to Security Hub. Build FAILING due to HIGH severity security violations."
+          exit 1
+        elif [ "$medium_alerts" != "0" ]; then
+          echo "Medium vulnerabilities found but within acceptable threshold."
+          aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
+          echo "- Medium vulnerabilities reported to Security Hub. Build continuing."
+        else
+          echo "- No high or medium vulnerabilities found in DAST scan."
+          echo "- DAST scan completed successfully."
+        fi
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP DAST analysis completed."
+
+artifacts:
+  type: zip
+  files:
+    - zap-scan-results.json
+    - payload.json
