@@ -219,7 +219,7 @@ resource "aws_ecs_task_definition" "staging" {
   memory                   = "1024"
   container_definitions    = jsonencode([
     {
-      name      = "app"
+      name      = "${var.project_name}-app-staging-container"
       image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
       essential = true
       portMappings = [{ containerPort = 80, hostPort = 80 }]
@@ -235,7 +235,7 @@ resource "aws_ecs_task_definition" "prod" {
   memory                   = "1024"
   container_definitions    = jsonencode([
     {
-      name      = "app"
+      name      = "${var.project_name}-app-prod-container"
       image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
       essential = true
       portMappings = [{ containerPort = 80, hostPort = 80 }]

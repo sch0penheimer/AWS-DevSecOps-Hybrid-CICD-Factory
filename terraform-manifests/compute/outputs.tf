@@ -76,3 +76,7 @@ output "production_service_arn" {
   description = "ARN of the production ECS service"
   value       = aws_ecs_service.production.id
 }
+
+output "production_container_name" {
+  value = "${var.project_name}-app-prod-container"
+}
