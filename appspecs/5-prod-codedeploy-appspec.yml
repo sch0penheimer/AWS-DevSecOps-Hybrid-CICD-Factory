@@ -1,0 +1,21 @@
+################################################################################
+#  File: appspecs/5-prod-codedeploy-appspec.yml
+#  Description: AppSpec file for the production deployment of the application.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 14/09/2025
+#
+#  Purpose:
+#    This AppSpec file defines the deployment actions and configurations for
+#    the production environment using AWS CodeDeploy (basically "how" CodeDeploy will 
+#    perform the deployment).
+################################################################################
+
+version: 1
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: <CONTAINER_NAME>
+          ContainerPort: 80
