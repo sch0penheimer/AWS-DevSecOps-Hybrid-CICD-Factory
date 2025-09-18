@@ -69,6 +69,7 @@ phases:
         fi
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Deploying to ECS:"
       - aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Generating imagedefinitions.json for CodeDeploy ECS deployment:"
       - printf '[{"name":"%s","imageUri":"%s"}]' $ECS_SERVICE_NAME $ECR_REPO_URI:$TAG > imagedefinitions.json
 
 artifacts:
