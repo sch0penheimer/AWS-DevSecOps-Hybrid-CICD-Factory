@@ -20,6 +20,16 @@ output "production_cluster_arn" {
 }
 
 #-- Load Balancer Outputs --#
+output "staging_alb_arn" {
+  description = "ARN of the staging Application Load Balancer"
+  value       = aws_lb.staging.arn
+}
+
+output "staging_alb_dns_name" {
+  description = "DNS name of the staging Application Load Balancer"
+  value       = aws_lb.staging.dns_name
+}
+
 output "production_alb_arn" {
   description = "ARN of the production Application Load Balancer"
   value       = aws_lb.production.arn
@@ -28,16 +38,6 @@ output "production_alb_arn" {
 output "production_alb_dns_name" {
   description = "DNS name of the production Application Load Balancer"
   value       = aws_lb.production.dns_name
-}
-
-output "production_alb_zone_id" {
-  description = "Zone ID of the production Application Load Balancer"
-  value       = aws_lb.production.zone_id
-}
-
-output "production_target_group_arn" {
-  description = "ARN of the production target group"
-  value       = aws_lb_target_group.production.arn
 }
 
 #-- ECR Repository Outputs --#

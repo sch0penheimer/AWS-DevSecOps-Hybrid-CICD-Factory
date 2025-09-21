@@ -81,7 +81,7 @@ resource "aws_launch_template" "staging" {
   image_id      = data.aws_ami.ecs_optimized.id
   instance_type = var.instance_types.staging
 
-  vpc_security_group_ids = [var.ecs_security_group_id]
+  vpc_security_group_ids = [var.staging_ecs_security_group_id]
   iam_instance_profile {
     name = aws_iam_instance_profile.ecs_instance_profile.name
   }
@@ -211,7 +211,7 @@ resource "aws_autoscaling_group" "production" {
 #-----------------------------------------------------------#
 #-- ECS Task Definitions (Prod / Staging) --#
 resource "aws_ecs_task_definition" "staging" {
-  family                   = "devsecops-platform-app-staging-task-def"
+  family                   = "${var.project_name}-app-staging-task-def"
   network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   cpu                      = "512"
@@ -227,7 +227,7 @@ resource "aws_ecs_task_definition" "staging" {
 }
 
 resource "aws_ecs_task_definition" "prod" {
-  family                   = "devsecops-platform-app-prod-task-def"
+  family                   = "${var.project_name}-app-prod-task-def"
   network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   cpu                      = "512"
@@ -257,15 +257,23 @@ resource "aws_ecs_task_definition" "prod" {
 
 #-- ECS Services (Prod / Staging) --#
 resource "aws_ecs_service" "staging" {
-  name            = "devsecops-platform-app-staging-service"
+  name            = "${var.project_name}-app-staging-service"
   cluster         = aws_ecs_cluster.staging.id
   task_definition = aws_ecs_task_definition.staging.arn
   desired_count   = 1
   launch_type     = "EC2"
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.staging.arn
+    container_name   = "devsecops_app_container"
+    container_port   = 80
+  }
+
+  depends_on = [aws_lb_listener.staging]
 }
 
 resource "aws_ecs_service" "prod" {
-  name            = "devsecops-platform-app-prod-service"
+  name            = "${var.project_name}-app-prod-service"
   cluster         = aws_ecs_cluster.prod.id
   task_definition = aws_ecs_task_definition.prod.arn
   desired_count   = 2
@@ -273,7 +281,7 @@ resource "aws_ecs_service" "prod" {
 
   load_balancer {
     target_group_arn = aws_lb_target_group.production.arn
-    container_name   = "app"
+    container_name   = "devsecops_app_container"
     container_port   = 80
   }
 
@@ -294,6 +302,23 @@ resource "aws_lb" "production" {
   tags = {
     Name        = "${var.project_name}-prod-alb"
     Environment = "production"
+  }
+}
+
+#-- Internal Application Load Balancer for Staging --#
+resource "aws_lb" "staging" {
+  name               = "${var.project_name}-staging-alb"
+  internal           = true
+  load_balancer_type = "application"
+  security_groups    = [var.staging_alb_security_group_id]
+  subnets            = var.private_subnet_ids
+
+  enable_deletion_protection = false
+
+  tags = {
+    Name        = "${var.project_name}-staging-alb"
+    Environment = "staging"
+    Access      = "internal-only"
   }
 }
 
@@ -322,6 +347,32 @@ resource "aws_lb_target_group" "production" {
   }
 }
 
+#-- Target Group for Staging ALB --#
+resource "aws_lb_target_group" "staging" {
+  name     = "${var.project_name}-staging-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name        = "${var.project_name}-staging-tg"
+    Environment = "staging"
+  }
+}
+
 #-- ALB Listener for Production --##
 resource "aws_lb_listener" "production" {
   load_balancer_arn = aws_lb.production.arn
@@ -331,6 +382,18 @@ resource "aws_lb_listener" "production" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.production.arn
+  }
+}
+
+#-- ALB Listener for Staging --#
+resource "aws_lb_listener" "staging" {
+  load_balancer_arn = aws_lb.staging.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.staging.arn
   }
 }
 

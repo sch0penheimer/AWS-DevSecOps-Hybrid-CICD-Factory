@@ -12,6 +12,10 @@ variable "prod_alb_security_group_id" {}
 
 variable "prod_ecs_security_group_id" {}
 
+variable "staging_alb_security_group_id" {}
+
+variable "staging_ecs_security_group_id" {}
+
 #------------------------------------------------------#
 ##-- Module Specific Variables --##
 
