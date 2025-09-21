@@ -31,7 +31,6 @@ module "compute" {
   prod_ecs_security_group_id    = module.network.prod_ecs_security_group_id
   staging_alb_security_group_id = module.network.staging_alb_security_group_id
   staging_ecs_security_group_id = module.network.staging_ecs_security_group_id
-  codebuild_security_group_id   = module.network.codebuild_security_group_id
 }
 
 #------------------------------------------------------------------------------#
