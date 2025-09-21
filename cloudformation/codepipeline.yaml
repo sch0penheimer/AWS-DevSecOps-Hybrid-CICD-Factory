@@ -69,6 +69,18 @@ Parameters:
     Description: Name of the Lambda Handler
     Type: String
 
+  VpcId:
+    Description: VPC ID for internal staging access
+    Type: String
+  
+  PrivateSubnetIds:
+    Description: Private subnet IDs for CodeBuild VPC access
+    Type: CommaDelimitedList
+  
+  CodeBuildSecurityGroupId:
+    Description: Security Group ID for CodeBuild DAST project
+    Type: String
+
   #-- CloudFormation Services Related Parameters --#
   GitProviderType:
     Description: Git Repository provider type
@@ -120,6 +132,9 @@ Metadata:
       - StagingECSService
       - ProdECSService
       - ProdTargetGroup
+      - VpcId
+      - PrivateSubnetIds
+      - CodeBuildSecurityGroupId
 
     - Label:
         default: Static Application Security Testing (SAST) Related Parameters
@@ -178,12 +193,20 @@ Metadata:
     ProdECSCluster:
         default: Production ECS Cluster Name
 
+    VpcId:
+        default: VPC ID for internal staging access
+      
+    PrivateSubnetIds:
+        default: Private Subnet IDs for CodeBuild VPC access
+    
+    CodeBuildSecurityGroupId:
+        default: Security Group ID for CodeBuild DAST project
+
     PipelineNotificationMail:
         default: Email for Pipeline Notifications
 
     PipelineManualApproverMail:
         default: Email for Approval Notifications
-
 
 ##-- Resources Section --##
 Resources:
@@ -806,7 +829,8 @@ Resources:
         - Key: pipeline-name
           Value: !Sub ${AWS::StackName}-devsecops-pipeline
 
-  #- 4. OWASP DAST Build Project -#
+  #- 4. OWASP DAST Build Project (Needs the Security Group to access the staging ECS Cluster
+  # + VPC Id & Private Subnet Ids to run internally and resolve internal IPs / DNS names) -#
   OwaspDASTBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -826,6 +850,11 @@ Resources:
         - Name: LAMBDA_FUNCTION_NAME
           Value: !Ref LambdaSHImport
       ServiceRole: !Ref CodeBuildServiceRole
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds 
+        SecurityGroupIds: 
+          - !Ref CodeBuildSecurityGroupId
       Source:
         Type: CODEPIPELINE
         BuildSpec: 4-owasp-zap-buildspec.yml
