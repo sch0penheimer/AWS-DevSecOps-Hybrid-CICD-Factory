@@ -6,13 +6,16 @@
 #
 #  Purpose: 
 #    This buildspec performs Dynamic Application Security Testing (DAST) using OWASP ZAP
-#    to identify security vulnerabilities in the running application in the staging
-#    environment before promoting to production.
+#    running ephemerally in the CodeBuild container to identify security vulnerabilities 
+#    in the running application in the staging environment before promoting to production.
 ################################################################################
 
 version: 0.2
 phases:
   install:
+    runtime-versions:
+      java: corretto11                      ##-- JRE, required for OWASP ZAP, coretto is AWS's distro of OpenJDK --##
+      python: 3.9                           ##-- Python Runtime, required for AWS CLI and scripting --##
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Install Phase begun."
       - echo "Updating package lists:"
@@ -21,6 +24,13 @@ phases:
       - apt-get -y install jq python3-pip python3-dev curl
       - echo "Installing/Upgrading the AWS CLI:"
       - pip3 install --upgrade awscli
+      - echo "Downloading and installing OWASP ZAP:"
+      - cd /tmp
+      - wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_Linux.tar.gz
+      - tar -xzf ZAP_2_14_0_Linux.tar.gz
+      - mv ZAP_2.14.0 /opt/zap
+      - chmod +x /opt/zap/zap.sh
+      - echo "ZAP installation completed."
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation phase completed successfully."
     finally:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of the install phase (always runs)."
@@ -28,44 +38,82 @@ phases:
   pre_build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase started."
-      - echo "Validating OWASP ZAP configuration:"
-      - echo "OWASP ZAP URL: $OWASP_ZAP_URL"
+      - echo "Starting OWASP ZAP daemon:"
       - echo "Application URL for DAST: $APPLICATION_URL"
-      - echo "Testing connectivity to OWASP ZAP instance:"
-      - curl -f "$OWASP_ZAP_URL/JSON/core/view/version/?apikey=$OWASP_ZAP_API_KEY" || exit 1
+      - export DISPLAY=:99
+      - Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+      - sleep 2
+      - echo "Starting ZAP in daemon mode..."
+      - /opt/zap/zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true > /tmp/zap.log 2>&1 &
+      - ZAP_PID=$!
+      - echo "ZAP PID: $ZAP_PID"
+      - echo "Waiting for ZAP to start..."
+      - sleep 30
+      - echo "Testing ZAP connectivity:"
+      - |
+        for i in {1..10}; do
+          if curl -f "http://localhost:8080/JSON/core/view/version/" > /dev/null 2>&1; then
+            echo "ZAP is ready!"
+            break
+          else
+            echo "Attempt $i: ZAP not ready, waiting..."
+            sleep 10
+          fi
+        done
+      - curl "http://localhost:8080/JSON/core/view/version/" | jq .
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase completed successfully."
+
 
   build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase started."
-      - echo "Starting OWASP ZAP Active Scan:"
-      - scanid=$(curl "$OWASP_ZAP_URL/JSON/ascan/action/scan/?apikey=$OWASP_ZAP_API_KEY&recurse=true&inScopeOnly=&scanPolicyName=&method=&postData=&contextId=&url=$APPLICATION_URL" | jq -r '.scan')
-      - echo "OWASP ZAP Scan ID: $scanid"
-      - echo "Waiting for scan to complete:"
+      - echo "Starting OWASP ZAP Spider Scan:"
+      - spider_scanid=$(curl "http://localhost:8080/JSON/spider/action/scan/?url=$APPLICATION_URL&recurse=true" | jq -r '.scan')
+      - echo "Spider Scan ID: $spider_scanid"
+      - echo "Waiting for spider scan to complete:"
       - |
-        stat=50;
+        stat=0;
         while [ "$stat" != "100" ]; do
-          stat=$(curl "$OWASP_ZAP_URL/JSON/ascan/view/status/?apikey=$OWASP_ZAP_API_KEY&scanId=$scanid" | jq -r '.status');
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP scan status: $stat%"
+          stat=$(curl "http://localhost:8080/JSON/spider/view/status/?scanId=$spider_scanid" | jq -r '.status');
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Spider scan status: $stat%"
           if [ "$stat" = "100" ]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP analysis completed successfully."
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Spider scan completed successfully."
             break
           fi
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP analysis in progress..."
+          sleep 5;
+        done
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Starting OWASP ZAP Active Scan:"
+      - active_scanid=$(curl "http://localhost:8080/JSON/ascan/action/scan/?url=$APPLICATION_URL&recurse=true&inScopeOnly=false" | jq -r '.scan')
+      - echo "Active Scan ID: $active_scanid"
+      - echo "Waiting for active scan to complete:"
+      - |
+        stat=0;
+        while [ "$stat" != "100" ]; do
+          stat=$(curl "http://localhost:8080/JSON/ascan/view/status/?scanId=$active_scanid" | jq -r '.status');
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Active scan status: $stat%"
+          if [ "$stat" = "100" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Active scan completed successfully."
+            break
+          fi
           sleep 10;
         done
       - echo "Generating scan report:"
-      - curl "$OWASP_ZAP_URL/OTHER/core/other/jsonreport/?apikey=$OWASP_ZAP_API_KEY" | jq . > zap-scan-results.json
+      - curl "http://localhost:8080/OTHER/core/other/jsonreport/" | jq . > zap-scan-results.json
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase completed successfully."
 
   post_build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Post-build phase started."
       - echo "Analyzing scan results:"
-      - high_alerts=$(curl "$OWASP_ZAP_URL/JSON/alert/view/alertsSummary/?apikey=$OWASP_ZAP_API_KEY&baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.High')
-      - medium_alerts=$(curl "$OWASP_ZAP_URL/JSON/alert/view/alertsSummary/?apikey=$OWASP_ZAP_API_KEY&baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Medium')
+      - high_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.High // 0')
+      - medium_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Medium // 0')
+      - low_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Low // 0')
+      - info_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Informational // 0')
+      - echo "=== OWASP ZAP DAST Scan Results ==="
       - echo "High severity alerts: $high_alerts"
       - echo "Medium severity alerts: $medium_alerts"
+      - echo "Low severity alerts: $low_alerts"
+      - echo "Informational alerts: $info_alerts"
       - echo "Preparing Security Hub payload:"
       - |
         jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"OWASP-ZAP\", \
@@ -76,20 +124,26 @@ phases:
         \"report\": . }" zap-scan-results.json > payload.json
       - echo "Evaluating OWASP ZAP DAST security scan results:"
       - |
-        if [ "$high_alerts" != "0" ]; then
-          echo "CRITICAL/HIGH vulnerabilities found in DAST scan."
+        if [ "$high_alerts" != "0" ] && [ "$high_alerts" != "null" ]; then
+          echo "- CRITICAL/HIGH vulnerabilities found in DAST scan."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
           echo "- Scan results uploaded to Security Hub. Build FAILING due to HIGH severity security violations."
           exit 1
-        elif [ "$medium_alerts" != "0" ]; then
-          echo "Medium vulnerabilities found but within acceptable threshold."
+        elif [ "$medium_alerts" != "0" ] && [ "$medium_alerts" != "null" ]; then
+          echo "- Medium vulnerabilities found but within acceptable threshold."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
           echo "- Medium vulnerabilities reported to Security Hub. Build continuing."
         else
           echo "- No high or medium vulnerabilities found in DAST scan."
           echo "- DAST scan completed successfully."
         fi
+      - echo "Shutting down ZAP daemon:"
+      - curl "http://localhost:8080/JSON/core/action/shutdown/" || true
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: OWASP ZAP DAST analysis completed."
+    finally:
+      - echo "Cleanup: Ensuring ZAP processes are terminated"
+      - pkill -f zap.sh || true
+      - pkill -f java.*zap || true
 
 artifacts:
   type: zip
