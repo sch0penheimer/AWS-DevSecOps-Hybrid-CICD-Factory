@@ -3,7 +3,7 @@
 #  Description: Network infrastructure provisioning for the AWS DevSecOps
 #               Hybrid CI/CD Platform.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 04/09/2025
+#  Last Modified: 21/09/2025
 #
 #  Purpose: Provisions VPC, subnets, route tables, and security groups 
 #           for the platform.
@@ -112,8 +112,8 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-resource "aws_security_group" "alb" {
-  name_prefix = "${var.project_name}-app-loadbalancer-security-group"
+resource "aws_security_group" "prod_alb" {
+  name_prefix = "${var.project_name}-prod-lb-security-group"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -140,12 +140,14 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name        = "${var.project_name}-app-loadbalancer-security-group"
+    Name        = "${var.project_name}-prod-lb-security-group"
   }
 }
 
-resource "aws_security_group" "ecs" {
-  name_prefix = "${var.project_name}-ecs-security-group"
+##- Staging LB SG to go -##
+
+resource "aws_security_group" "prod_ecs" {
+  name_prefix = "${var.project_name}-prod-ecs-security-group"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -153,7 +155,7 @@ resource "aws_security_group" "ecs" {
     from_port       = 80
     to_port         = 80
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+    security_groups = [aws_security_group.prod_alb.id]
   }
 
   ingress {
@@ -161,7 +163,7 @@ resource "aws_security_group" "ecs" {
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+    security_groups = [aws_security_group.prod_alb.id]
   }
 
   ingress {
@@ -169,7 +171,7 @@ resource "aws_security_group" "ecs" {
     from_port       = 32768
     to_port         = 65535
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
+    security_groups = [aws_security_group.prod_alb.id]
   }
 
   ingress {
@@ -188,6 +190,8 @@ resource "aws_security_group" "ecs" {
   }
 
   tags = {
-    Name        = "${var.project_name}-ecs-security-group"
+    Name        = "${var.project_name}-prod-ecs-security-group"
   }
 }
+
+##- Staging ECS SG to go -##

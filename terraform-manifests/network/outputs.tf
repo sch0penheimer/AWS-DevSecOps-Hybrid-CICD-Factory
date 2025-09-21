@@ -2,7 +2,7 @@
 #  File: network/outputs.tf
 #  Description: Output definitions for the network module's resources.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 04/09/2025
+#  Last Modified: 21/09/2025
 #
 #  Purpose: Exposes network resource IDs for cross-module integration.
 ################################################################################
@@ -22,12 +22,12 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
-output "alb_security_group_id" {
-  description = "The security group ID for the ALB"
-  value       = aws_security_group.alb.id
+output "prod_alb_security_group_id" {
+  description = "The security group ID for the Production ALB"
+  value       = aws_security_group.prod_alb.id
 }
 
-output "ecs_security_group_id" {
-  description = "The security group ID for ECS instances"
-  value       = aws_security_group.ecs.id
+output "prod_ecs_security_group_id" {
+  description = "The security group ID for Production ECS instances"
+  value       = aws_security_group.prod_ecs.id
 }
