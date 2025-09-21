@@ -2,7 +2,7 @@
 #  File: main.tf
 #  Description: Root Terraform configuration for the AWS DevSecOps Hybrid CI/CD Platform.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 04/09/2025
+#  Last Modified: 21/09/2025
 #
 #  Purpose: Orchestrates core modules (network, compute, storage) for compliant 
 #           infrastructure provisioning.
@@ -20,16 +20,15 @@ module "network" {
 }
 
 #------------------------------------------------------------------------------#
-
 ##-- Compute Module (ECS EC2-based) --##
 module "compute" {
   source = "./compute"
-  project_name          = var.project_name
-  vpc_id                = module.network.vpc_id
-  public_subnet_ids     = module.network.public_subnet_ids
-  private_subnet_ids    = module.network.private_subnet_ids
-  alb_security_group_id = module.network.alb_security_group_id
-  ecs_security_group_id = module.network.ecs_security_group_id
+  project_name               = var.project_name
+  vpc_id                     = module.network.vpc_id
+  public_subnet_ids          = module.network.public_subnet_ids
+  private_subnet_ids         = module.network.private_subnet_ids
+  prod_alb_security_group_id = module.network.prod_alb_security_group_id
+  prod_ecs_security_group_id = module.network.prod_ecs_security_group_id
 }
 
 #------------------------------------------------------------------------------#

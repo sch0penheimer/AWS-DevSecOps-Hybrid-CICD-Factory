@@ -46,7 +46,6 @@ resource "aws_iam_instance_profile" "ecs_instance_profile" {
 }
 
 #---------------------------------------------------------#
-
 #-- ECS Clusters --#
 resource "aws_ecs_cluster" "staging" {
   name = var.ecs_cluster_names.staging
@@ -114,7 +113,7 @@ resource "aws_launch_template" "production" {
   image_id      = data.aws_ami.ecs_optimized.id
   instance_type = var.instance_types.production
 
-  vpc_security_group_ids = [var.ecs_security_group_id]
+  vpc_security_group_ids = [var.prod_ecs_security_group_id]
   iam_instance_profile {
     name = aws_iam_instance_profile.ecs_instance_profile.name
   }
@@ -287,7 +286,7 @@ resource "aws_lb" "production" {
   name               = "${var.project_name}-prod-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [var.alb_security_group_id]
+  security_groups    = [var.prod_alb_security_group_id]
   subnets            = var.public_subnet_ids
 
   enable_deletion_protection = false

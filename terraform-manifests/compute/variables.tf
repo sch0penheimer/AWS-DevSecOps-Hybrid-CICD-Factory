@@ -8,9 +8,9 @@ variable "private_subnet_ids" {}
 
 variable "public_subnet_ids" {}
 
-variable "alb_security_group_id" {}
+variable "prod_alb_security_group_id" {}
 
-variable "ecs_security_group_id" {}
+variable "prod_ecs_security_group_id" {}
 
 #------------------------------------------------------#
 ##-- Module Specific Variables --##
