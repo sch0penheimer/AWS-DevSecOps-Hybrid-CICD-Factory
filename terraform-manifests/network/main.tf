@@ -141,10 +141,43 @@ resource "aws_security_group" "prod_alb" {
 
   tags = {
     Name        = "${var.project_name}-prod-lb-security-group"
+    Purpose     = "production-internet-access"
+
   }
 }
 
-##- Staging LB SG to go -##
+resource "aws_security_group" "staging_alb" {
+  name_prefix = "${var.project_name}-staging-lb-security-group"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    security_groups = [aws_security_group.codebuild.id]
+  }
+
+  ingress {
+    description     = "HTTPS"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.codebuild.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-staging-lb-security-group"
+    Purpose     = "internal-staging_access-only"
+  }
+}
 
 resource "aws_security_group" "prod_ecs" {
   name_prefix = "${var.project_name}-prod-ecs-security-group"
@@ -194,4 +227,73 @@ resource "aws_security_group" "prod_ecs" {
   }
 }
 
-##- Staging ECS SG to go -##
+resource "aws_security_group" "staging_ecs" {
+  name_prefix = "${var.project_name}-staging-ecs-security-group"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "HTTP from Staging ALB"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.staging_alb.id]
+  }
+
+  ingress {
+    description     = "HTTPS from Staging ALB"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.staging_alb.id]
+  }
+
+  ingress {
+    description     = "Dynamic port range from Staging ALB"
+    from_port       = 32768
+    to_port         = 65535
+    protocol        = "tcp"
+    security_groups = [aws_security_group.staging_alb.id]
+  }
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${chomp(data.http.my_ip.response_body)}/32"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-staging-ecs-security-group"
+  }
+}
+
+##-- CodeBuild Security Group for Exclusive Staging Cluster Access --##
+resource "aws_security_group" "codebuild" {
+  name_prefix = "${var.project_name}-codebuild-security-group"
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    description = "All outbound traffic for CodeBuild operations"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name    = "${var.project_name}-codebuild-security-group"
+    Purpose = "dast-build-operations"
+  }
+
+  tags = {
+    Name = "${var.project_name}-codebuild-security-group"
+  }
+}

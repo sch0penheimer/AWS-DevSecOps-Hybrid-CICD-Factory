@@ -31,3 +31,18 @@ output "prod_ecs_security_group_id" {
   description = "The security group ID for Production ECS instances"
   value       = aws_security_group.prod_ecs.id
 }
+
+output "staging_alb_security_group_id" {
+  description = "The security group ID for the Staging ALB"
+  value       = aws_security_group.staging_alb.id
+}
+
+output "staging_ecs_security_group_id" {
+  description = "The security group ID for Staging ECS instances"
+  value       = aws_security_group.staging_ecs.id
+}
+
+output "codebuild_security_group_id" {
+  description = "The security group ID for CodeBuild Projects (Especially the DAST one)"
+  value       = aws_security_group.codebuild.id
+}

@@ -23,12 +23,15 @@ module "network" {
 ##-- Compute Module (ECS EC2-based) --##
 module "compute" {
   source = "./compute"
-  project_name               = var.project_name
-  vpc_id                     = module.network.vpc_id
-  public_subnet_ids          = module.network.public_subnet_ids
-  private_subnet_ids         = module.network.private_subnet_ids
-  prod_alb_security_group_id = module.network.prod_alb_security_group_id
-  prod_ecs_security_group_id = module.network.prod_ecs_security_group_id
+  project_name                  = var.project_name
+  vpc_id                        = module.network.vpc_id
+  public_subnet_ids             = module.network.public_subnet_ids
+  private_subnet_ids            = module.network.private_subnet_ids
+  prod_alb_security_group_id    = module.network.prod_alb_security_group_id
+  prod_ecs_security_group_id    = module.network.prod_ecs_security_group_id
+  staging_alb_security_group_id = module.network.staging_alb_security_group_id
+  staging_ecs_security_group_id = module.network.staging_ecs_security_group_id
+  codebuild_security_group_id   = module.network.codebuild_security_group_id
 }
 
 #------------------------------------------------------------------------------#
