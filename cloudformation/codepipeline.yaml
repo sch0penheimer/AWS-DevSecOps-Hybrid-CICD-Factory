@@ -823,6 +823,8 @@ Resources:
         - Name: APPLICATION_URL
           Type: PARAMETER_STORE
           Value: !Ref SSMAppURL
+        - Name: LAMBDA_FUNCTION_NAME
+          Value: !Ref LambdaSHImport
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
         Type: CODEPIPELINE
