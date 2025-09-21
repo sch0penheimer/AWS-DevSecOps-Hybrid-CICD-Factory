@@ -217,14 +217,14 @@ Resources:
     Type: 'AWS::SSM::Parameter'
     Properties:
       Name: !Sub ${AWS::StackName}-Snyk-API-Key
-      Type: String 
+      Type: SecureString 
       Value: !Ref SnykAPIKey
 
   SSMOwaspZapAPIKey:
     Type: 'AWS::SSM::Parameter'
     Properties:
       Name: !Sub ${AWS::StackName}-OWASPZap-API-Key
-      Type: String 
+      Type: SecureString
       Value: !Ref OwaspZapAPIKey
 
   SSMOwaspZapURL:
@@ -326,10 +326,10 @@ Resources:
       Subscription: 
       - Endpoint: !Ref PipelineManualApproverMail
         Protocol: "email"
-      TopicName: !Sub -${AWS::StackName}-devsecops-pipeline-manual-approval
+      TopicName: !Sub ${AWS::StackName}-devsecops-pipeline-manual-approval-topic
       Tags:
-        - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+      - Key: pipeline-name
+        Value: !Sub ${AWS::StackName}-devsecops-pipeline
 
   PipelineTopic:
     Type: AWS::SNS::Topic
@@ -338,10 +338,10 @@ Resources:
       Subscription: 
       - Endpoint: !Ref PipelineNotificationMail
         Protocol: "email"
-      TopicName: !Sub -${AWS::StackName}-devsecops-pipeline-change
+      TopicName: !Sub ${AWS::StackName}-devsecops-pipeline-change-topic
       Tags:
-        - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+      - Key: pipeline-name
+        Value: !Sub ${AWS::StackName}-devsecops-pipeline
 
   CloudTrailTopic:
     Type: AWS::SNS::Topic
@@ -352,8 +352,8 @@ Resources:
         Protocol: "email"
       TopicName: !Sub ${AWS::StackName}-cloudtrail-notifications-topic
       Tags:
-        - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+      - Key: pipeline-name
+        Value: !Sub ${AWS::StackName}-devsecops-pipeline
 
   #- Main Lambda Function (for Security Hub Import) -#
   LambdaSHImport:
@@ -362,7 +362,7 @@ Resources:
       FunctionName: ImportToSecurityHub
       Handler: !Ref LambdaHandler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.8
+      Runtime: python3.9
       Code:
         S3Bucket: !Ref LambdaS3Bucket
         S3Key: !Ref LambdaS3Key
@@ -570,7 +570,7 @@ Resources:
     Properties:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: !Sub "${AWS::StackName}-devsecops-prod-deployment-group"
-      ServiceRoleArn: !GetAtt CodeBuildServiceRole.Arn
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
       DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
       AutoRollbackConfiguration:
         Enabled: true
@@ -579,9 +579,9 @@ Resources:
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
-      ECSService:
-        ClusterName: !Ref ProdECSCluster
-        ServiceName: !Ref ProdECSService
+      ECSServices:
+        - ClusterName: !Ref ProdECSCluster
+          ServiceName: !Ref ProdECSService
       LoadBalancerInfo:
         TargetGroupInfoList:
           - Name: !Ref ProdTargetGroup
@@ -776,6 +776,7 @@ Resources:
         Type: LINUX_CONTAINER
         EnvironmentVariables: 
         - Name: SNYK_API_KEY
+          Type: PARAMETER_STORE
           Value: !Ref SSMSnykAPIKey
         - Name: ECR_REPO_NAME
           Value: !Ref EcrRegistryName
@@ -859,10 +860,13 @@ Resources:
         PrivilegedMode: true
         EnvironmentVariables:
         - Name: OWASP_ZAP_API_KEY
+          Type: PARAMETER_STORE
           Value: !Ref SSMOwaspZapAPIKey
         - Name: OWASP_ZAP_URL
+          Type: PARAMETER_STORE
           Value: !Ref SSMOwaspZapURL
         - Name: APPLICATION_URL
+          Type: PARAMETER_STORE
           Value: !Ref SSMAppURL
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
@@ -922,6 +926,21 @@ Resources:
         - '-'
         - - !Ref 'AWS::StackName'
           - SecurityCodeAnalysisRole
+
+CodeDeployServiceRole:
+  Type: AWS::IAM::Role
+  Properties:
+    AssumeRolePolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - codedeploy.amazonaws.com
+          Action: 'sts:AssumeRole'
+    ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForECS
+    Path: /
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
