@@ -1,7 +1,8 @@
 #############################################################################################
-#  AWS DevSecOps Hybrid CI/CD Pipeline CloudFormation Template
 #  File: codepipeline.yaml
-#  Description: Automated multi-stage CI/CD pipeline with integrated security and compliance.
+#  Description: Automated, CloudFormation-based, multi-stage CI/CD pipeline with integrated security and compliance.
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 21/09/2025
 #
 #  This template provisions a secure CI/CD pipeline using AWS services, integrating:
 #    - Code & container security scanning (Snyk, Clair/ECR, OWASP ZAP)
