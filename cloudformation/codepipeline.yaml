@@ -70,10 +70,6 @@ Parameters:
     Type: String
 
   #-- CloudFormation Services Related Parameters --#
-  CodeConnectionName:
-    Description: Name for the CodeConnections connection
-    Type: String
-  
   GitProviderType:
     Description: Git Repository provider type
     Type: String
@@ -96,15 +92,6 @@ Parameters:
     Type: String
     NoEcho: true
   
-  OwaspZapAPIKey:
-    Description: OWASP Zap API Key
-    Type: String
-    NoEcho: true
-  
-  OwaspZapURL:
-    Description: OWASP Zap DAST URL
-    Type: String
-  
   AppURLForDAST:
     Description: Application URL to run the Dynamic Application Security Testing / Pen Testing
     Type: String
@@ -124,7 +111,6 @@ Metadata:
     - Label:
         default: Infrastructure & Codebase Related Parameters
       Parameters:
-      - CodeConnectionName
       - GitProviderType
       - FullGitRepositoryId
       - BranchName
@@ -143,8 +129,6 @@ Metadata:
     - Label:
         default: Dynamic Application Security Testing (DAST) Related Parameters
       Parameters:
-      - OwaspZapURL
-      - OwaspZapAPIKey
       - AppURLForDAST
 
     - Label:
@@ -161,9 +145,6 @@ Metadata:
       - PipelineManualApproverMail
 
   ParameterLabels:
-    CodeConnectionName:
-        default: CodeConnections Connection Name
-    
     GitProviderType:
         default: Git Repository Provider Type
     
@@ -175,12 +156,6 @@ Metadata:
 
     SnykAPIKey:
         default: Snyk API Key
-
-    OwaspZapURL:
-        default: OWASP Zap URL
-
-    OwaspZapAPIKey:
-        default: OWASP Zap API Key
 
     AppURLForDAST:
         default: App URL for DAST (Staging)
@@ -220,20 +195,6 @@ Resources:
       Type: SecureString 
       Value: !Ref SnykAPIKey
 
-  SSMOwaspZapAPIKey:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Name: !Sub ${AWS::StackName}-OWASPZap-API-Key
-      Type: SecureString
-      Value: !Ref OwaspZapAPIKey
-
-  SSMOwaspZapURL:
-    Type: 'AWS::SSM::Parameter'
-    Properties:
-      Name: !Sub ${AWS::StackName}-OWASPZap-URL
-      Type: String
-      Value: !Ref OwaspZapURL
-
   SSMAppURL:
     Type: 'AWS::SSM::Parameter'
     Properties:
@@ -245,7 +206,7 @@ Resources:
   CodeConnection:
     Type: AWS::CodeStarConnections::Connection
     Properties:
-      ConnectionName: !Ref CodeConnectionName
+      ConnectionName: !Sub ${AWS::StackName}-devsecops-platform-code-connection
       ProviderType: !Ref GitProviderType
       Tags:
         - Key: pipeline-name
@@ -859,12 +820,6 @@ Resources:
         Type: LINUX_CONTAINER
         PrivilegedMode: true
         EnvironmentVariables:
-        - Name: OWASP_ZAP_API_KEY
-          Type: PARAMETER_STORE
-          Value: !Ref SSMOwaspZapAPIKey
-        - Name: OWASP_ZAP_URL
-          Type: PARAMETER_STORE
-          Value: !Ref SSMOwaspZapURL
         - Name: APPLICATION_URL
           Type: PARAMETER_STORE
           Value: !Ref SSMAppURL
