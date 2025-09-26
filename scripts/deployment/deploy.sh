@@ -1,0 +1,816 @@
+#!/bin/bash
+#################################################################################
+# File: deploy.sh
+# Description: Main deployment script (Bash) for AWS DevSecOps Hybrid CI/CD Platform
+# Author: Haitam Bidiouane (@sch0penheimer)
+# Last Modified: 26/09/2025
+#
+# This script orchestrates the complete deployment:
+# 1. Validates environment configuration
+# 2. Creates Lambda ZIP package
+# 3. Optionally deploys Terraform infrastructure
+# 4. Deploys CloudFormation CI/CD pipeline with Terraform outputs
+#################################################################################
+
+set -e
+
+##-- Script config --##
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+TERRAFORM_DIR="$ROOT_DIR/terraform-manifests"
+CLOUDFORMATION_DIR="$ROOT_DIR/cloudformation"
+ENV_FILE="$ROOT_DIR/.env"
+
+##-- Colors (output) --##
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+NOCOLOR='\033[0m'
+
+##-- CLI options --##
+SKIP_INFRASTRUCTURE=false
+DESTROY_INFRASTRUCTURE=false
+SHOW_HELP=false
+AUTO_INSTALL=false
+
+##-- CLI arguments parsing --##
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-infrastructure)
+            SKIP_INFRASTRUCTURE=true
+            shift
+            ;;
+        --destroy-infrastructure)
+            DESTROY_INFRASTRUCTURE=true
+            shift
+            ;;
+        --auto-install)
+            AUTO_INSTALL=true
+            shift
+            ;;
+        --help|-h)
+            SHOW_HELP=true
+            shift
+            ;;
+        *)
+            echo "Unknown option $1"
+            exit 1
+            ;;
+    esac
+done
+
+show_help() {
+    cat << EOF
+    echo "${BLUE}╔══════════════════════════════════════════════════════════════════════════════╗${NOCOLOR}"
+    echo "${BLUE}║                    AWS DevSecOps Hybrid CI/CD Platform                       ║${NOCOLOR}"
+    echo "${BLUE}║                         Deployment Script (bash) v2.0                        ║${NOCOLOR}"
+    echo "${BLUE}║                  Author: Haitam Bidiouane (@sch0penheimer)                   ║${NOCOLOR}"
+    echo "${BLUE}╚══════════════════════════════════════════════════════════════════════════════╝${NOCOLOR}"
+    
+    ${CYAN}USAGE:${NOCOLOR}
+        $0 [OPTIONS]
+
+    ${CYAN}OPTIONS:${NOCOLOR}
+        --skip-infrastructure           Skip Terraform infrastructure deployment (use existing infrastructure)
+        --destroy-infrastructure        Destroy existing Terraform infrastructure and exit
+        --auto-install                  Automatically install missing prerequisites without prompting
+        --help, -h                      Show this help message
+
+    ${CYAN}EXAMPLES:${NOCOLOR}
+        $0                                    ${GREEN}#- Full deployment with new infrastructure -#${NOCOLOR}
+        $0 --skip-infrastructure              ${GREEN}#- Deploy only CI/CD pipeline to existing infrastructure -#${NOCOLOR}
+        $0 --destroy-infrastructure           ${GREEN}#- Destroy infrastructure and exit -#${NOCOLOR}
+        $0 --auto-install                     ${GREEN}#- Auto-install prerequisites and deploy -#${NOCOLOR}
+
+    ${CYAN}PREREQUISITES:${NOCOLOR}
+        - AWS CLI configured with appropriate credentials
+        - Terraform v1.0+ installed and in PATH
+        - jq (JSON processor) for parsing outputs
+        - Bash 4.0 or later
+        - Completed .env file with required configuration
+
+    ${CYAN}NOTES:${NOCOLOR}
+        - Script can auto-install missing prerequisites with user consent
+        - Supports Windows (Git Bash/WSL), macOS, and Linux
+    EOF
+}
+
+##-- Logger function (w/ timestamp & color coding) --##
+log_message() {
+    local message="$1"
+    local type="${2:-INFO}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    case $type in
+        "ERROR")   echo -e "${RED} [$timestamp: ERROR] $message${NOCOLOR}" ;;
+        "WARNING") echo -e "${YELLOW} [$timestamp: WARNING] $message${NOCOLOR}" ;;
+        "INFO")    echo -e "${CYAN} [$timestamp: INFO] $message${NOCOLOR}" ;;
+        "DEBUG")   echo -e "${PURPLE} [$timestamp: DEBUG] $message${NOCOLOR}" ;;
+        *)         echo -e "${BLUE} [$timestamp: LOG] $message${NOCOLOR}" ;;
+    esac
+}
+
+##-- Function to detect OS --##
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "linux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        echo "windows"
+    else
+        echo "unknown"
+    fi
+}
+
+##-- Function to check admin/sudo privileges --##
+check_admin_privileges() {
+    local os_type=$(detect_os)
+    
+    case $os_type in
+        "windows")
+            net session &>/dev/null
+            return $?
+            ;;
+        "linux"|"macos")
+            if [[ $EUID -eq 0 ]]; then
+                return 0
+            elif sudo -n true 2>/dev/null; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+##----------------/!\--------------##
+##-- Function to install AWS CLI --##
+##----------------/!\--------------##
+install_aws_cli() {
+    local os_type=$(detect_os)
+    log_message "Installing AWS CLI for $os_type:" "WARNING"
+    
+    case $os_type in
+        "windows")
+            log_message "Installing AWS CLI for Windows via MSI:" "INFO"
+            log_message "Downloading AWS CLI MSI installer:" "INFO"
+            if curl -L "https://awscli.amazonaws.com/AWSCLIV2.msi" -o "AWSCLIV2.msi"; then
+                log_message "Installing AWS CLI (silent mode):" "INFO"
+
+                # Install silently using msiexec -quiet
+                if msiexec.exe /i AWSCLIV2.msi /qn /norestart; then
+                    log_message "AWS CLI MSI installation completed" "SUCCESS"
+
+                    #- Clean up installer -#
+                    rm -f AWSCLIV2.msi
+
+                    #- Refresh PATH for current session -#
+                    export PATH="/c/Program Files/Amazon/AWSCLIV2:$PATH"
+                    hash -r
+
+                    #- Verify installation -#
+                    sleep 3
+                    if aws --version &> /dev/null; then
+                        local aws_version=$(aws --version 2>&1 | cut -d/ -f2 | cut -d' ' -f1)
+                        log_message "AWS CLI installation verified: v$aws_version" "SUCCESS"
+                    else
+                        log_message "AWS CLI installation verification failed. Please restart your terminal." "WARNING"
+                        log_message "AWS CLI should be available after terminal restart" "INFO"
+                    fi
+                else
+                    log_message "AWS CLI MSI installation failed" "ERROR"
+                    rm -f AWSCLIV2.msi
+                    exit 1
+                fi
+            else
+                log_message "Failed to download AWS CLI MSI installer" "ERROR"
+                exit 1
+            fi
+            ;;
+        "macos")
+            if command -v brew &> /dev/null; then
+                log_message "Installing via Homebrew:" "INFO"
+                brew install awscli
+            else
+                log_message "Installing via direct download:" "INFO"
+                curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+                sudo installer -pkg AWSCLIV2.pkg -target /
+                rm AWSCLIV2.pkg
+            fi
+            ;;
+        "linux")
+            log_message "Installing via direct download:" "INFO"
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+            rm -rf awscliv2.zip aws/
+            ;;
+        *)
+            log_message "Unsupported OS for automatic AWS CLI installation" "ERROR"
+            exit 1
+            ;;
+    esac
+    
+    log_message "AWS CLI installed successfully" "SUCCESS"
+}
+
+##-- Function to install Terraform --##
+install_terraform() {
+    local os_type=$(detect_os)
+    local terraform_version="1.6.2"
+    log_message "Installing Terraform v$terraform_version for $os_type:" "WARNING"
+
+    case $os_type in
+        "windows")
+            log_message "Installing Terraform for Windows:" "INFO"
+            curl -LO "https://releases.hashicorp.com/terraform/${terraform_version}/terraform_${terraform_version}_windows_amd64.zip"
+            unzip -q "terraform_${terraform_version}_windows_amd64.zip"
+            
+            local install_dir="$HOME/bin"
+            mkdir -p "$install_dir"
+            mv terraform.exe "$install_dir/"
+            rm "terraform_${terraform_version}_windows_amd64.zip"
+            
+            export PATH="$install_dir:$PATH"
+            
+            log_message "Terraform installed to: $install_dir" "SUCCESS"
+            log_message "Please add $install_dir to your PATH permanently" "WARNING"
+            ;;
+        "macos")
+            if command -v brew &> /dev/null; then
+                log_message "Installing via Homebrew:" "INFO"
+                brew tap hashicorp/tap
+                brew install hashicorp/tap/terraform
+            else
+                log_message "Installing via direct download:" "INFO"
+                curl -LO "https://releases.hashicorp.com/terraform/${terraform_version}/terraform_${terraform_version}_darwin_amd64.zip"
+                unzip -q "terraform_${terraform_version}_darwin_amd64.zip"
+                sudo mv terraform /usr/local/bin/
+                rm "terraform_${terraform_version}_darwin_amd64.zip"
+            fi
+            ;;
+        "linux")
+            log_message "Installing via direct download:" "INFO"
+            curl -LO "https://releases.hashicorp.com/terraform/${terraform_version}/terraform_${terraform_version}_linux_amd64.zip"
+            unzip -q "terraform_${terraform_version}_linux_amd64.zip"
+            sudo mv terraform /usr/local/bin/
+            rm "terraform_${terraform_version}_linux_amd64.zip"
+            ;;
+        *)
+            log_message "Unsupported OS for automatic Terraform installation" "ERROR"
+            exit 1
+            ;;
+    esac
+    
+    log_message "Terraform installed successfully" "SUCCESS"
+}
+
+##-- Function to install jq --##
+install_jq() {
+    local os_type=$(detect_os)
+    log_message "Installing jq for $os_type:" "WARNING"
+    
+    case $os_type in
+        "windows")
+            log_message "Installing jq for Windows:"
+            curl -L "https://github.com/stedolan/jq/releases/latest/download/jq-win64.exe" -o "jq.exe"
+            local install_dir="$HOME/bin"
+            mkdir -p "$install_dir"
+            mv jq.exe "$install_dir/"
+            
+            export PATH="$install_dir:$PATH"
+            
+            log_message "jq installed to: $install_dir" "SUCCESS"
+            ;;
+        "macos")
+            if command -v brew &> /dev/null; then
+                log_message "Installing via Homebrew:" "INFO"
+                brew install jq
+            else
+                log_message "Installing via direct download:" "INFO"
+                curl -L "https://github.com/stedolan/jq/releases/latest/download/jq-osx-amd64" -o jq
+                chmod +x jq
+                sudo mv jq /usr/local/bin/
+            fi
+            ;;
+        "linux")
+            if command -v apt-get &> /dev/null; then
+                log_message "Installing via apt:" "INFO"
+                sudo apt-get update && sudo apt-get install -y jq
+            elif command -v yum &> /dev/null; then
+                log_message "Installing via yum:" "INFO"
+                sudo yum install -y jq
+            elif command -v dnf &> /dev/null; then
+                log_message "Installing via dnf:" "INFO"
+                sudo dnf install -y jq
+            else
+                log_message "Installing via direct download:" "INFO"
+                curl -L "https://github.com/stedolan/jq/releases/latest/download/jq-linux64" -o jq
+                chmod +x jq
+                sudo mv jq /usr/local/bin/
+            fi
+            ;;
+        *)
+            log_message "Unsupported OS for automatic jq installation" "ERROR"
+            exit 1
+            ;;
+    esac
+    
+    log_message "jq installed successfully" "SUCCESS"
+}
+
+##-- Enhanced prerequisites check with auto-installation --##
+check_prerequisites() {
+    log_message "Checking prerequisites:" "INFO"
+    local missing_tools=()
+    local install_missing=false
+    
+    #- Check AWS CLI -#
+    if ! command -v aws &> /dev/null; then
+        log_message "AWS CLI not found" "ERROR"
+        missing_tools+=("aws-cli")
+    else
+        local aws_version=$(aws --version 2>&1 | cut -d/ -f2 | cut -d' ' -f1)
+        log_message "AWS CLI found: v$aws_version" "SUCCESS"
+    fi
+
+    #- Check Terraform -#
+    if ! command -v terraform &> /dev/null; then
+        log_message "Terraform not found" "ERROR"
+        missing_tools+=("terraform")
+    else
+        local tf_version=$(terraform version -json 2>/dev/null | jq -r '.terraform_version' 2>/dev/null || terraform version | head -n1 | cut -d' ' -f2)
+        log_message "Terraform found: $tf_version" "SUCCESS"
+    fi
+    
+    #- Check jq -#
+    if ! command -v jq &> /dev/null; then
+        log_message "jq not found (required for parsing Terraform outputs)" "ERROR"
+        missing_tools+=("jq")
+    else
+        local jq_version=$(jq --version 2>/dev/null || echo "jq-unknown")
+        log_message "jq found: $jq_version" "SUCCESS"
+    fi
+    
+    #- Check unzip (required for installations) -#
+    if ! command -v unzip &> /dev/null; then
+        log_message "unzip not found (required for installations)" "WARNING"
+        if [[ $(detect_os) == "linux" ]]; then
+            log_message "Installing unzip:" "INFO"
+            if command -v apt-get &> /dev/null; then
+                sudo apt-get update && sudo apt-get install -y unzip
+            elif command -v yum &> /dev/null; then
+                sudo yum install -y unzip
+            elif command -v dnf &> /dev/null; then
+                sudo dnf install -y unzip
+            fi
+        fi
+    fi
+
+    #- Handle missing tools -#
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        log_message "Missing tools: ${missing_tools[*]}" "WARNING"
+        
+        if [[ "$AUTO_INSTALL" == true ]]; then
+            install_missing=true
+        else
+            echo
+            read -p "Do you want to install missing prerequisites automatically? (y/N): " choice
+            if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+                install_missing=true
+            fi
+        fi
+        
+        if [[ "$install_missing" == true ]]; then
+            log_message "Installing missing prerequisites:" "INFO"
+            
+            for tool in "${missing_tools[@]}"; do
+                case $tool in
+                    "aws-cli") install_aws_cli ;;
+                    "terraform") install_terraform ;;
+                    "jq") install_jq ;;
+                esac
+            done
+            
+            #- Refresh Shell's command hashtable to consider the new env paths -#
+            hash -r
+            log_message "Refreshing environment:" "INFO"
+            sleep 2
+            
+            #- Re-verify installations -#
+            log_message "Verifying installations:" "INFO"
+            for tool in "${missing_tools[@]}"; do
+                case $tool in
+                    "aws-cli")
+                        if command -v aws &> /dev/null; then
+                            log_message "AWS CLI installation verified" "SUCCESS"
+                        else
+                            log_message "AWS CLI installation failed" "ERROR"
+                            exit 1
+                        fi
+                        ;;
+                    "terraform")
+                        if command -v terraform &> /dev/null; then
+                            log_message "Terraform installation verified" "SUCCESS"
+                        else
+                            log_message "Terraform installation failed" "ERROR"
+                            exit 1
+                        fi
+                        ;;
+                    "jq")
+                        if command -v jq &> /dev/null; then
+                            log_message "jq installation verified" "SUCCESS"
+                        else
+                            log_message "jq installation failed" "ERROR"
+                            exit 1
+                        fi
+                        ;;
+                esac
+            done
+        else
+            log_message "Please install missing prerequisites manually and run the script again" "ERROR"
+            exit 1
+        fi
+    fi
+    
+    #- Check .env file -#
+    if [[ ! -f "$ENV_FILE" ]]; then
+        log_message ".env file not found" "ERROR"
+        log_message "Please create and configure .env file before proceeding" "ERROR"
+        exit 1
+    fi
+    
+    log_message "All prerequisites check completed successfully" "SUCCESS"
+}
+
+##-- Function to configure AWS credentials --##
+configure_aws_credentials() {
+    log_message "Configuring AWS credentials:" "INFO"
+    
+    #- Check if credentials are already available via AWS credential chain -#
+    if aws sts get-caller-identity &> /dev/null; then
+        local aws_identity=$(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null)
+        local account_id=$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null)
+        log_message "Using existing AWS credentials: $aws_identity" "SUCCESS"
+        log_message "AWS Account ID: $account_id" "INFO"
+        return 0
+    fi
+
+    #- If no credentials found, check .env file -#
+    if [[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" ]]; then
+        log_message "Using AWS credentials from .env file" "INFO"
+        
+        export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+        
+        if [[ -n "$AWS_REGION" ]]; then
+            export AWS_DEFAULT_REGION="$AWS_REGION"
+        fi
+        
+        #- Verify credentials work -#
+        if aws sts get-caller-identity &> /dev/null; then
+            local aws_identity=$(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null)
+            local account_id=$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null)
+            log_message "AWS credentials from .env verified: $aws_identity" "SUCCESS"
+            log_message "AWS Account ID: $account_id" "INFO"
+        else
+            log_message "AWS credentials from .env are invalid!" "ERROR"
+            log_message "Please check your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env file" "ERROR"
+            exit 1
+        fi
+        
+    else
+        log_message "No AWS credentials found!" "ERROR"
+        log_message "Please use one of the following methods:" "INFO"
+        log_message "1. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env file" "INFO"
+        log_message "2. Run 'aws configure' to set up AWS CLI profile" "INFO"
+        log_message "3. Use IAM roles if running on AWS infrastructure" "INFO"
+        log_message "4. Configure AWS SSO: 'aws configure sso'" "INFO"
+        exit 1
+    fi
+}
+
+load_environment() {
+    log_message "Loading environment configuration:" "INFO"
+    
+    if [[ -f "$ENV_FILE" ]]; then
+        #- Export variables from .env file -#
+        set -a
+        source "$ENV_FILE"
+        set +a
+        
+        log_message "Environment configuration loaded successfully" "SUCCESS"
+    else
+        log_message ".env file not found!" "ERROR"
+        exit 1
+    fi
+    
+    #- Validate required environment variables -#
+    local required_vars=(
+        "GIT_PROVIDER_TYPE" "FULL_GIT_REPOSITORY_ID" "BRANCH_NAME"
+        "SNYK_API_KEY" "PIPELINE_NOTIFICATION_MAIL" "PIPELINE_MANUAL_APPROVER_MAIL"
+        "AWS_REGION"
+    )
+    
+    log_message "Validating required environment variables:" "INFO"
+    for var in "${required_vars[@]}"; do
+        if [[ -z "${!var}" ]]; then
+            log_message "Required environment variable $var is not set!" "ERROR"
+            exit 1
+        else
+            log_message "$var is set" "DEBUG"
+        fi
+    done
+    
+    #- AWS credentials in .env (can use other methods) -#
+    if [[ -n "$AWS_ACCESS_KEY_ID" || -n "$AWS_SECRET_ACCESS_KEY" ]]; then
+        if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+            log_message "Both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be provided together" "ERROR"
+            exit 1
+        fi
+        log_message "AWS credentials found in .env file" "SUCCESS"
+    else
+        log_message "No AWS credentials in .env file - will use AWS credential chain" "INFO"
+    fi
+    
+    log_message "Environment validation completed successfully" "SUCCESS"
+}
+
+create_lambda_package() {
+    log_message "Creating Lambda ZIP package:" "INFO"
+    
+    local zip_script="$SCRIPT_DIR/zip_lambda.sh"
+    if [[ -f "$zip_script" ]]; then
+        chmod +x "$zip_script"
+        log_message "Executing Lambda packaging script:" "INFO"
+        "$zip_script"
+        log_message "Lambda packaging completed successfully" "SUCCESS"
+    else
+        log_message "Lambda ZIP script not found at: $zip_script" "ERROR"
+        exit 1
+    fi
+}
+
+deploy_infrastructure() {
+    log_message "Deploying Terraform infrastructure:" "INFO"
+    
+    cd "$TERRAFORM_DIR"
+    
+    log_message "Initializing Terraform:" "INFO"
+    terraform init
+    
+    #- Validate Terraform config -#
+    log_message "Validating Terraform configuration:" "INFO"
+    terraform validate
+
+    #- Plan deployment -#
+    log_message "Planning Terraform deployment:" "INFO"
+    terraform plan -out=tfplan
+    
+    #- Apply deployment -#
+    log_message "Applying Terraform deployment:" "WARNING"
+    terraform apply tfplan
+    
+    log_message "Terraform infrastructure deployed successfully" "SUCCESS"
+    cd "$ROOT_DIR"
+}
+
+destroy_infrastructure() {
+    log_message "Destroying Terraform infrastructure:" "WARNING"
+    
+    cd "$TERRAFORM_DIR"
+    
+    echo
+    log_message "WARNING: This will destroy ALL Terraform-managed infrastructure!" "ERROR"
+    read -p "Are you absolutely sure? Type 'DESTROY' to continue: " confirmation
+    
+    if [[ "$confirmation" != "DESTROY" ]]; then
+        log_message "Destruction cancelled by user" "INFO"
+        exit 0
+    fi
+    
+    terraform destroy -auto-approve
+
+    log_message "Terraform infrastructure destroyed successfully" "SUCCESS"
+    cd "$ROOT_DIR"
+}
+
+get_terraform_outputs() {
+    log_message "Retrieving Terraform outputs:" "INFO"
+    
+    cd "$TERRAFORM_DIR"
+    
+    if ! terraform output -json > /tmp/terraform_outputs.json 2>/dev/null; then
+        log_message "Failed to retrieve Terraform outputs" "ERROR"
+        exit 1
+    fi
+    
+    cd "$ROOT_DIR"
+    
+    log_message "Terraform outputs retrieved successfully" "SUCCESS"
+    echo "/tmp/terraform_outputs.json"
+}
+
+deploy_cloudformation_stack() {
+    local terraform_outputs_file="$1"
+    
+    log_message "Deploying CloudFormation CI/CD pipeline:" "INFO"
+    
+    local stack_name="aws-devsecops-hybrid-cicd-platform"
+    local template_file="$CLOUDFORMATION_DIR/codepipeline.yaml"
+    
+    if [[ ! -f "$template_file" ]]; then
+        log_message "CloudFormation template not found at: $template_file" "ERROR"
+        exit 1
+    fi
+    
+    #- Build parameter overrides- #
+    local parameters=()
+    
+    #- Terraform infrastructure outputs as CloudFormation parameters -#
+    if [[ -f "$terraform_outputs_file" ]]; then
+        log_message "Using Terraform outputs for infrastructure parameters:" "INFO"
+        
+        local staging_ecs_cluster=$(jq -r '.staging_ecs_cluster_name.value // empty' "$terraform_outputs_file")
+        local staging_ecs_service=$(jq -r '.staging_ecs_service_name.value // empty' "$terraform_outputs_file")
+        local prod_ecs_cluster=$(jq -r '.prod_ecs_cluster_name.value // empty' "$terraform_outputs_file")
+        local prod_ecs_service=$(jq -r '.prod_ecs_service_name.value // empty' "$terraform_outputs_file")
+        local prod_target_group=$(jq -r '.prod_target_group_name.value // empty' "$terraform_outputs_file")
+        local ecr_registry_name=$(jq -r '.ecr_repository_name.value // empty' "$terraform_outputs_file")
+        local artifact_bucket=$(jq -r '.artifact_store_bucket_name.value // empty' "$terraform_outputs_file")
+        local lambda_bucket=$(jq -r '.lambda_bucket_name.value // empty' "$terraform_outputs_file")
+        local lambda_handler=$(jq -r '.lambda_handler.value // empty' "$terraform_outputs_file")
+        local lambda_s3_key=$(jq -r '.lambda_s3_key.value // empty' "$terraform_outputs_file")
+        local vpc_id=$(jq -r '.vpc_id.value // empty' "$terraform_outputs_file")
+        local private_subnets=$(jq -r '.private_subnet_ids.value | join(",") // empty' "$terraform_outputs_file")
+        local codebuild_sg=$(jq -r '.codebuild_security_group_id.value // empty' "$terraform_outputs_file")
+        
+        parameters+=(
+            "StagingECSCluster=$staging_ecs_cluster"
+            "StagingECSService=$staging_ecs_service"
+            "ProdECSCluster=$prod_ecs_cluster"
+            "ProdECSService=$prod_ecs_service"
+            "ProdTargetGroup=$prod_target_group"
+            "EcrRegistryName=$ecr_registry_name"
+            "PipelineArtifactS3Bucket=$artifact_bucket"
+            "LambdaS3Bucket=$lambda_bucket"
+            "LambdaS3Key=$lambda_s3_key"
+            "LambdaHandler=$lambda_handler"
+            "VpcId=$vpc_id"
+            "PrivateSubnetIds=$private_subnets"
+            "CodeBuildSecurityGroupId=$codebuild_sg"
+        )
+    else
+        #- Prompt user for existing custom infrastructure values -#
+        log_message "Provide your existing infrastructure details:" "WARNING"
+        echo
+        read -p "Staging ECS Cluster Name: " staging_ecs_cluster
+        read -p "Staging ECS Service Name: " staging_ecs_service
+        read -p "Production ECS Cluster Name: " prod_ecs_cluster
+        read -p "Production ECS Service Name: " prod_ecs_service
+        read -p "Production Target Group Name: " prod_target_group
+        read -p "ECR Repository Name: " ecr_registry_name
+        read -p "Pipeline Artifact S3 Bucket Name: " artifact_bucket
+        read -p "Lambda S3 Bucket Name: " lambda_bucket
+        read -p "Lambda S3 Key (example: lambda/lambda.zip): " lambda_s3_key
+        read -p "Lambda Handler (e.g., lambda_function.lambda_handler): " lambda_handler
+        read -p "App URL for DAST (Staging): " app_url_for_dast
+        read -p "VPC ID: " vpc_id
+        read -p "Private Subnet IDs (comma-separated): " private_subnets
+        read -p "CodeBuild Security Group ID: " codebuild_sg
+        
+        parameters+=(
+            "StagingECSCluster=$staging_ecs_cluster"
+            "StagingECSService=$staging_ecs_service"
+            "ProdECSCluster=$prod_ecs_cluster"
+            "ProdECSService=$prod_ecs_service"
+            "ProdTargetGroup=$prod_target_group"
+            "EcrRegistryName=$ecr_registry_name"
+            "PipelineArtifactS3Bucket=$artifact_bucket"
+            "LambdaS3Bucket=$lambda_bucket"
+            "LambdaS3Key=$lambda_s3_key"
+            "LambdaHandler=$lambda_handler"
+            "AppURLForDAST=$app_url_for_dast"
+            "VpcId=$vpc_id"
+            "PrivateSubnetIds=$private_subnets"
+            "CodeBuildSecurityGroupId=$codebuild_sg"
+        )
+    fi
+    
+    #- Environment configuration parameters -#
+    parameters+=(
+        "GitProviderType=$GIT_PROVIDER_TYPE"
+        "FullGitRepositoryId=$FULL_GIT_REPOSITORY_ID"
+        "BranchName=$BRANCH_NAME"
+        "SnykAPIKey=$SNYK_API_KEY"
+        "PipelineNotificationMail=$PIPELINE_NOTIFICATION_MAIL"
+        "PipelineManualApproverMail=$PIPELINE_MANUAL_APPROVER_MAIL"
+    )
+    
+    #- Deploy CloudFormation stack -#
+    log_message "Deploying CloudFormation stack: $stack_name" "INFO"
+    
+    if aws cloudformation deploy \
+        --template-file "$template_file" \
+        --stack-name "$stack_name" \
+        --parameter-overrides "${parameters[@]}" \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --region "$AWS_REGION" \
+        --no-fail-on-empty-changeset; then
+        
+        log_message "CloudFormation stack deployed successfully" "SUCCESS"
+        
+        #- Get stack outputs -#
+        log_message "Retrieving stack outputs:" "INFO"
+        aws cloudformation describe-stacks \
+            --stack-name "$stack_name" \
+            --query 'Stacks[0].Outputs' \
+            --region "$AWS_REGION" \
+            --output table
+    else
+        log_message "CloudFormation stack deployment failed!" "ERROR"
+        exit 1
+    fi
+}
+
+print_next_steps() {
+    echo
+    log_message "AWS DevSecOps Hybrid CI/CD Platform deployment completed successfully!" "SUCCESS"
+    echo
+    log_message "Next steps:" "INFO"
+    echo "   1. Complete the CodeConnections connection in AWS Console"
+    echo "   2. Verify SNS email subscriptions in your inbox"
+    echo "   3. Test the pipeline by pushing code to your repository"
+    echo "   4. Monitor pipeline execution in AWS CodePipeline console"
+    echo
+    log_message "Useful AWS Console Links:" "INFO"
+    echo "   • CodePipeline     : https://console.aws.amazon.com/codesuite/codepipeline/pipelines"
+    echo "   • CodeBuild        : https://console.aws.amazon.com/codesuite/codebuild/projects"
+    echo "   • ECS              : https://console.aws.amazon.com/ecs/home"
+    echo "   • CloudWatch Logs  : https://console.aws.amazon.com/cloudwatch/home#logsV2:log-groups"
+    echo
+}
+
+main() {
+    echo ${BLUE}[Haitam Bidiouane (@sch0penheimer)]: AWS DevSecOps Hybrid CI/CD Platform Deployment Script${NOCOLOR}
+
+    echo
+    
+    if [[ "$SHOW_HELP" == true ]]; then
+        show_help
+        exit 0
+    fi
+    
+    log_message "Starting AWS DevSecOps Hybrid CI/CD Platform deployment:" "SUCCESS"
+    log_message "OS detected: $(detect_os)" "INFO"
+    
+    check_prerequisites
+    
+    load_environment
+    
+    comfigure_aws_credentials
+
+    #- Handle destroy operation -#
+    if [[ "$DESTROY_INFRASTRUCTURE" == true ]]; then
+        destroy_infrastructure
+        log_message "Infrastructure destruction completed." "SUCCESS"
+        exit 0
+    fi
+    
+    #- Create Lambda ZIP package -#
+    create_lambda_package
+    
+    #- Deploy infrastructure or skip -#
+    local terraform_outputs_file=""
+    if [[ "$SKIP_INFRASTRUCTURE" == false ]]; then
+        echo
+        read -p "Do you want to deploy new platform (standard) infrastructure using Terraform? (y/N): " choice
+        if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+            deploy_infrastructure
+            terraform_outputs_file=$(get_terraform_outputs)
+        else
+            log_message "Skipping infrastructure deployment. Will use existing infrastructure." "WARNING"
+        fi
+    else
+        log_message "Infrastructure deployment skipped as requested." "WARNING"
+    fi
+    
+    #- Deploy CloudFormation pipeline stack -#
+    deploy_cloudformation_stack "$terraform_outputs_file"
+
+    #- Print guiding next steps -#
+    print_next_steps
+}
+
+#- Trap errors and cleanup -#
+trap 'log_message "Script interrupted or failed" "ERROR"; exit 1' ERR INT TERM
+
+#- Execute main function -#
+main "$@"
