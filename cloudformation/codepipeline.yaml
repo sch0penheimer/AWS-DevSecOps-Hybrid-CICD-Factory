@@ -82,6 +82,10 @@ Parameters:
     Description: Security Group ID for CodeBuild DAST project
     Type: String
 
+  AppURLForDAST:
+    Description: Application URL to run the Dynamic Application Security Testing / Pen Testing
+    Type: String
+
   #-- CloudFormation Services Related Parameters --#
   GitProviderType:
     Description: Git Repository provider type
@@ -104,10 +108,6 @@ Parameters:
     Description: Snyk API Key
     Type: String
     NoEcho: true
-  
-  AppURLForDAST:
-    Description: Application URL to run the Dynamic Application Security Testing / Pen Testing
-    Type: String
   
   PipelineNotificationMail:
     Description: SNS notifications Email Address for every Pipeline Change
