@@ -34,7 +34,6 @@ module "compute" {
 }
 
 #------------------------------------------------------------------------------#
-
 ##-- Storage Module --##
 module "storage" {
   source       = "./storage"

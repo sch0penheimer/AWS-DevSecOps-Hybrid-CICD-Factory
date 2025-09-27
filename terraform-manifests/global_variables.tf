@@ -10,7 +10,7 @@
 variable "project_name" {
   description     = "aws-devsecops-cicd-platform"
   type            = string
-  default         = "AWS DevSecOps CI/CD Platform"
+  default         = "AWS-DevSecOps-CICD-Platform"
 }
 
 variable "aws_account_region" {
