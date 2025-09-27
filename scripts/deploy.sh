@@ -422,6 +422,45 @@ update_appspec_files() {
     fi
 }
 
+update_lambda_env_file() {
+    local terraform_outputs_file="$1"
+    
+    log_message "Updating Lambda .env file with Terraform outputs:" "INFO"
+    
+    if [[ ! -f "$terraform_outputs_file" ]]; then
+        log_message "Terraform outputs file not found - skipping Lambda .env updates" "WARNING"
+        return 0
+    fi
+    
+    local lambda_env_file="$ROOT_DIR/lambda-function/.env"
+    local lambda_env_template="$ROOT_DIR/lambda-function/.env.template"
+    
+    #- Get values from Terraform outputs -#
+    local artifact_bucket=$(jq -r '.artifact_store_bucket_name.value // empty' "$terraform_outputs_file")
+    local aws_region=$(jq -r '.aws_region.value // empty' "$terraform_outputs_file")
+    
+    #- Create/update Lambda .env file -#
+    if [[ -f "$lambda_env_template" ]]; then
+        cp "$lambda_env_template" "$lambda_env_file"
+    fi
+    
+    #- Update with Terraform outputs -#
+    if [[ -n "$artifact_bucket" ]]; then
+        echo "S3_ARTIFACT_BUCKET_NAME=$artifact_bucket" >> "$lambda_env_file"
+        log_message "  - S3_ARTIFACT_BUCKET_NAME: $artifact_bucket" "DEBUG"
+    fi
+
+    if [[ -n "$aws_region" ]]; then
+        echo "AWS_REGION=$aws_region" >> "$lambda_env_file"
+        log_message "  - AWS_REGION: $aws_region" "DEBUG"
+    fi
+
+    echo "AWS_PARTITION=aws" >> "$lambda_env_file"
+    log_message "  - AWS_PARTITION: aws" "DEBUG"
+
+    log_message "Lambda .env file updated successfully" "SUCCESS"
+}
+
 deploy_cloudformation_stack() {
     local terraform_outputs_file="$1"
     
@@ -582,9 +621,6 @@ main() {
         exit 0
     fi
     
-    #- Create Lambda ZIP package -#
-    create_lambda_package
-    
     #- Deploy infrastructure or skip -#
     local terraform_outputs_file=""
     if [[ "$SKIP_INFRASTRUCTURE" == false ]]; then
@@ -594,19 +630,24 @@ main() {
             deploy_infrastructure
             terraform_outputs_file=$(get_terraform_outputs)
             
-            #- Update AppSpec files with Terraform outputs -#
+            #- 1) Update AppSpec files with Terraform outputs -#
             update_appspec_files "$terraform_outputs_file"
+            #- 2) Update lambda .env with Terraform outputs -#
+            update_lambda_env_file "$terraform_outputs_file"
         else
             log_message "Skipping infrastructure deployment. Will use existing infrastructure." "WARNING"
         fi
     else
         log_message "Infrastructure deployment skipped as requested." "WARNING"
     fi
+
+    #- I. Create Lambda ZIP package -#
+    create_lambda_package
     
-    #- Deploy CloudFormation pipeline stack -#
+    #- II. Deploy CloudFormation pipeline stack -#
     deploy_cloudformation_stack "$terraform_outputs_file"
 
-    #- Print guiding next steps -#
+    #- III. Print guiding next steps -#
     print_next_steps
 }
 
