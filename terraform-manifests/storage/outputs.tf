@@ -8,9 +8,16 @@
 ################################################################################
 
 output "artifact_bucket_name" {
-  value = aws_s3_bucket.artifact_store.bucket
+  description = "S3 Artifact bucket name (Used by CloudFormation)"
+  value       = aws_s3_bucket.artifact_store.bucket
 }
 
 output "lambda_bucket_name" {
-  value = aws_s3_bucket.lambda_bucket.bucket
+  description = "S3 bucket name of the lambda package name (Used by CloudFormation)"
+  value       = aws_s3_bucket.lambda_bucket.bucket
+}
+
+output "lambda_package_key" {
+  description = "S3 key of the lambda package (Used by CloudFormation)"
+  value       = aws_s3_object.lambda_package.key
 }
