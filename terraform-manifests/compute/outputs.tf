@@ -9,6 +9,11 @@ output "staging_cluster_arn" {
   value       = aws_ecs_cluster.staging.arn
 }
 
+output "staging_cluster_name" {
+  description = "Name of the staging ECS cluster (Used by CloudFormation)"
+  value       = aws_ecs_cluster.staging.namne
+}
+
 output "production_cluster_id" {
   description = "ID of the production ECS cluster"
   value       = aws_ecs_cluster.production.id
@@ -19,6 +24,11 @@ output "production_cluster_arn" {
   value       = aws_ecs_cluster.production.arn
 }
 
+output "production_cluster_name" {
+  description = "Name of the production ECS cluster (Used by CloudFormation)"
+  value       = aws_ecs_cluster.production.name
+}
+
 #-- Load Balancer Outputs --#
 output "staging_alb_arn" {
   description = "ARN of the staging Application Load Balancer"
@@ -26,7 +36,7 @@ output "staging_alb_arn" {
 }
 
 output "staging_alb_dns_name" {
-  description = "DNS name of the staging Application Load Balancer"
+  description = "DNS name of the staging Application Load Balancer (Used by CloudFormation for DAST App URL)"
   value       = aws_lb.staging.dns_name
 }
 
@@ -52,13 +62,13 @@ output "ecr_repository_arn" {
 }
 
 output "ecr_repository_name" {
-  description = "Name of the ECR repository"
+  description = "Name of the ECR repository (Used by CloudFormation)"
   value       = aws_ecr_repository.app_repo.name
 }
 
 #-- ECS Service Outputs --#
 output "staging_service_name" {
-  description = "Name of the staging ECS service"
+  description = "Name of the staging ECS service (Used by CloudFormation)"
   value       = aws_ecs_service.staging.name
 }
 
@@ -68,15 +78,30 @@ output "staging_service_arn" {
 }
 
 output "production_service_name" {
-  description = "Name of the production ECS service"
-  value       = aws_ecs_service.production.name
+  description = "Name of the production ECS service (Used by CloudFormation)"
+  value       = aws_ecs_service.prod.name
 }
 
 output "production_service_arn" {
   description = "ARN of the production ECS service"
-  value       = aws_ecs_service.production.id
+  value       = aws_ecs_service.prod.id
 }
 
 output "production_container_name" {
-  value = "${var.project_name}-app-prod-container"
+  value = "${var.project_name}-app-prod-container (Used by CloudFormation CodeBuild's AppSpec)"
+}
+
+output "staging_task_definition_arn" {
+  description = "ARN of the staging task definition"
+  value       = aws_ecs_task_definition.staging.arn
+}
+
+output "production_task_definition_arn" {
+  description = "ARN of the production task definition (Used by CloudFormation CodeBuild's AppSpec)"
+  value       = aws_ecs_task_definition.prod.arn
+}
+
+output "production_target_group_name" {
+  description = "Name of the production ALB's target group (Used by CloudFormation)"
+  value       = aws_lb_target_group.production.name
 }

@@ -265,7 +265,7 @@ resource "aws_ecs_service" "staging" {
 
   load_balancer {
     target_group_arn = aws_lb_target_group.staging.arn
-    container_name   = "devsecops_app_container"
+    container_name   = "${var.project_name}-app-staging-container"
     container_port   = 80
   }
 
@@ -274,14 +274,14 @@ resource "aws_ecs_service" "staging" {
 
 resource "aws_ecs_service" "prod" {
   name            = "${var.project_name}-app-prod-service"
-  cluster         = aws_ecs_cluster.prod.id
+  cluster         = aws_ecs_cluster.production.id
   task_definition = aws_ecs_task_definition.prod.arn
   desired_count   = 2
   launch_type     = "EC2"
 
   load_balancer {
     target_group_arn = aws_lb_target_group.production.arn
-    container_name   = "devsecops_app_container"
+    container_name   = "${var.project_name}-app-prod-container"
     container_port   = 80
   }
 
