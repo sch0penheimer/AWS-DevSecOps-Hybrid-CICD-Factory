@@ -11,7 +11,7 @@ output "staging_cluster_arn" {
 
 output "staging_cluster_name" {
   description = "Name of the staging ECS cluster (Used by CloudFormation)"
-  value       = aws_ecs_cluster.staging.namne
+  value       = aws_ecs_cluster.staging.name
 }
 
 output "production_cluster_id" {
