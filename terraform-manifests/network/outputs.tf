@@ -8,7 +8,7 @@
 ################################################################################
 
 output "vpc_id" {
-  description = "The ID of the VPC"
+  description = "The ID of the VPC (Used by CloudFormation)"
   value       = aws_vpc.main.id
 }
 
@@ -18,7 +18,7 @@ output "public_subnet_ids" {
 }
 
 output "private_subnet_ids" {
-  description = "List of private subnet IDs"
+  description = "List of private subnet IDs (Used by CloudFormation)"
   value       = aws_subnet.private[*].id
 }
 
@@ -43,6 +43,6 @@ output "staging_ecs_security_group_id" {
 }
 
 output "codebuild_security_group_id" {
-  description = "The security group ID for CodeBuild Projects (Especially the DAST one)"
+  description = "The security group ID for CodeBuild Projects (Used by CloudFormation)"
   value       = aws_security_group.codebuild.id
 }
