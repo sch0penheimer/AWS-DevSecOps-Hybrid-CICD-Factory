@@ -11,4 +11,4 @@ $source = ".\lambda-function\*"
 $destination = ".\terraform-manifests\storage\lambda.zip"
 if (Test-Path $destination) { Remove-Item $destination }
 Compress-Archive -Path $source -DestinationPath $destination -Force
-Write-Host "[AWS DevSecOps Hybrid CI/CD Platform]: Lambda function zipped to $destination"
+Write-Host "Lambda function zipped to $destination"

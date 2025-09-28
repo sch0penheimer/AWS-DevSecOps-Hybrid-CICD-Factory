@@ -12,4 +12,4 @@
 cd lambda-function
 zip -r ../terraform-manifests/storage/lambda.zip .
 cd ..
-echo "[AWS DevSecOps Hybrid CI/CD Platform]: Lambda function zipped to terraform-manifests/storage/lambda.zip"
+echo "Lambda function zipped to terraform-manifests/storage/lambda.zip"

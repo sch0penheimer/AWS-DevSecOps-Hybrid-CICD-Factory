@@ -16,7 +16,7 @@ set -e
 
 ##-- Script config --##
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 TERRAFORM_DIR="$ROOT_DIR/terraform-manifests"
 CLOUDFORMATION_DIR="$ROOT_DIR/cloudformation"
 ENV_FILE="$ROOT_DIR/.env"
@@ -58,38 +58,32 @@ while [[ $# -gt 0 ]]; do
 done
 
 show_help() {
-    cat << EOF
-    echo "${BLUE}╔══════════════════════════════════════════════════════════════════════════════╗${NOCOLOR}"
-    echo "${BLUE}║                    AWS DevSecOps Hybrid CI/CD Platform                       ║${NOCOLOR}"
-    echo "${BLUE}║                         Deployment Script (bash) v2.0                        ║${NOCOLOR}"
-    echo "${BLUE}║                  Author: Haitam Bidiouane (@sch0penheimer)                   ║${NOCOLOR}"
-    echo "${BLUE}╚══════════════════════════════════════════════════════════════════════════════╝${NOCOLOR}"
-    
-    ${CYAN}USAGE:${NOCOLOR}
-        $0 [OPTIONS]
-
-    ${CYAN}OPTIONS:${NOCOLOR}
-        --skip-infrastructure           Skip Terraform infrastructure deployment (use existing infrastructure)
-        --destroy-infrastructure        Destroy existing Terraform infrastructure and exit
-        --help, -h                      Show this help message
-
-    ${CYAN}EXAMPLES:${NOCOLOR}
-        $0                                    ${GREEN}#- Full deployment with new infrastructure -#${NOCOLOR}
-        $0 --skip-infrastructure              ${GREEN}#- Deploy only CI/CD pipeline to existing infrastructure -#${NOCOLOR}
-        $0 --destroy-infrastructure           ${GREEN}#- Destroy infrastructure and exit -#${NOCOLOR}
-
-    ${CYAN}PREREQUISITES:${NOCOLOR}
-        - Bash v4.0+
-        - AWS CLI v2+
-        - Terraform v1.0+
-        - jq (JSON processor)
-        - .env file completed with required configuration
-
-    ${CYAN}NOTES:${NOCOLOR}
-        - All prerequisites MUST be installed before running this script
-        - Supports Windows (Git Bash/WSL), macOS, and Linux
-        - Script will exit if any prerequisites are missing
-EOF
+    echo -e "${CYAN}AWS DevSecOps Hybrid CI/CD Platform Deployment Script Helping Manual${NOCOLOR}"
+    echo
+    echo -e "${CYAN}USAGE:${NOCOLOR}"
+    echo "    $0 [OPTIONS]"
+    echo
+    echo -e "${CYAN}OPTIONS:${NOCOLOR}"
+    echo "    --skip-infrastructure           Skip Terraform infrastructure deployment (use existing infrastructure)"
+    echo "    --destroy-infrastructure        Destroy existing Terraform infrastructure and exit"
+    echo "    --help, -h                      Show this help message"
+    echo
+    echo -e "${CYAN}EXAMPLES:${NOCOLOR}"
+    echo -e "    $0                                    ${GREEN}#- Full deployment with new infrastructure -#${NOCOLOR}"
+    echo -e "    $0 --skip-infrastructure              ${GREEN}#- Deploy only CI/CD pipeline to existing infrastructure -#${NOCOLOR}"
+    echo -e "    $0 --destroy-infrastructure           ${GREEN}#- Destroy infrastructure and exit -#${NOCOLOR}"
+    echo
+    echo -e "${CYAN}PREREQUISITES:${NOCOLOR}"
+    echo "    - Bash v4.0+"
+    echo "    - AWS CLI v2+"
+    echo "    - Terraform v1.0+"
+    echo "    - jq (JSON processor)"
+    echo "    - .env file completed with required configuration"
+    echo
+    echo -e "${CYAN}NOTES:${NOCOLOR}"
+    echo "    - All prerequisites MUST be installed before running this script"
+    echo "    - Supports Windows (Git Bash/WSL), macOS, and Linux"
+    echo "    - Script will exit if any prerequisites are missing"
 }
 
 ##-- Logger function (w/ timestamp & color coding) --##
@@ -99,12 +93,12 @@ log_message() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     case $type in
-        "ERROR")   echo -e "${RED}[$timestamp: ERROR] $message${NOCOLOR}" ;;
-        "WARNING") echo -e "${YELLOW}[$timestamp: WARNING] $message${NOCOLOR}" ;;
-        "SUCCESS") echo -e "${GREEN}[$timestamp: SUCCESS] $message${NOCOLOR}" ;;
-        "INFO")    echo -e "${CYAN}[$timestamp: INFO] $message${NOCOLOR}" ;;
-        "DEBUG")   echo -e "${PURPLE}[$timestamp: DEBUG] $message${NOCOLOR}" ;;
-        *)         echo -e "${BLUE}[$timestamp: LOG] $message${NOCOLOR}" ;;
+        "ERROR")   echo -e "${RED}[$timestamp: ERROR]${NOCOLOR} $message" ;;
+        "WARNING") echo -e "${YELLOW}[$timestamp: WARNING]${NOCOLOR} $message" ;;
+        "SUCCESS") echo -e "${GREEN}[$timestamp: SUCCESS]${NOCOLOR} $message" ;;
+        "INFO")    echo -e "${CYAN}[$timestamp: INFO]${NOCOLOR} $message" ;;
+        "DEBUG")   echo -e "${PURPLE}[$timestamp: DEBUG]${NOCOLOR} $message" ;;
+        *)         echo -e "${BLUE}[$timestamp: LOG]${NOCOLOR} $message" ;;
     esac
 }
 
@@ -183,6 +177,15 @@ check_prerequisites() {
         log_message "Bash version: ${BASH_VERSION}" "SUCCESS"
     fi
 
+    #- Check zip (required for Lambda packaging) -#
+    if ! command -v zip &> /dev/null; then
+        log_message "zip not found (required for Lambda packaging)" "ERROR"
+        missing_tools+=("zip")
+        all_good=false
+    else
+        log_message "zip found" "SUCCESS"
+    fi
+    
     #- Check .env file -#
     if [[ ! -f "$ENV_FILE" ]]; then
         log_message " .env file not found at: $ENV_FILE" "ERROR"
@@ -311,10 +314,26 @@ create_lambda_package() {
     if [[ -f "$zip_script" ]]; then
         chmod +x "$zip_script"
         log_message "Executing Lambda packaging script:" "INFO"
-        "$zip_script"
-        log_message "Lambda packaging completed successfully" "SUCCESS"
+        
+        if "$zip_script"; then
+            log_message "Lambda packaging completed successfully" "SUCCESS"
+            
+            #- Verify -#
+            local lambda_zip_path="$TERRAFORM_DIR/storage/lambda.zip"
+            if [[ -f "$lambda_zip_path" ]]; then
+                local zip_size=$(du -h "$lambda_zip_path" | cut -f1)
+                log_message "Lambda ZIP created: $lambda_zip_path ($zip_size)" "SUCCESS"
+            else
+                log_message "Lambda ZIP file not found at expected location: $lambda_zip_path" "ERROR"
+                exit 1
+            fi
+        else
+            log_message "Lambda packaging script failed with exit code: $?" "ERROR"
+            log_message "Check the zip_lambda.sh script for errors" "ERROR"
+            exit 1
+        fi
     else
-        log_message " Lambda ZIP script not found at: $zip_script" "ERROR"
+        log_message "Lambda ZIP script not found at: $zip_script" "ERROR"
         exit 1
     fi
 }
@@ -420,45 +439,6 @@ update_appspec_files() {
     else
         log_message "Production AppSpec file not found: $prod_appspec" "WARNING"
     fi
-}
-
-update_lambda_env_file() {
-    local terraform_outputs_file="$1"
-    
-    log_message "Updating Lambda .env file with Terraform outputs:" "INFO"
-    
-    if [[ ! -f "$terraform_outputs_file" ]]; then
-        log_message "Terraform outputs file not found - skipping Lambda .env updates" "WARNING"
-        return 0
-    fi
-    
-    local lambda_env_file="$ROOT_DIR/lambda-function/.env"
-    local lambda_env_template="$ROOT_DIR/lambda-function/.env.template"
-    
-    #- Get values from Terraform outputs -#
-    local artifact_bucket=$(jq -r '.artifact_store_bucket_name.value // empty' "$terraform_outputs_file")
-    local aws_region=$(jq -r '.aws_region.value // empty' "$terraform_outputs_file")
-    
-    #- Create/update Lambda .env file -#
-    if [[ -f "$lambda_env_template" ]]; then
-        cp "$lambda_env_template" "$lambda_env_file"
-    fi
-    
-    #- Update with Terraform outputs -#
-    if [[ -n "$artifact_bucket" ]]; then
-        echo "S3_ARTIFACT_BUCKET_NAME=$artifact_bucket" >> "$lambda_env_file"
-        log_message "  - S3_ARTIFACT_BUCKET_NAME: $artifact_bucket" "DEBUG"
-    fi
-
-    if [[ -n "$aws_region" ]]; then
-        echo "AWS_REGION=$aws_region" >> "$lambda_env_file"
-        log_message "  - AWS_REGION: $aws_region" "DEBUG"
-    fi
-
-    echo "AWS_PARTITION=aws" >> "$lambda_env_file"
-    log_message "  - AWS_PARTITION: aws" "DEBUG"
-
-    log_message "Lambda .env file updated successfully" "SUCCESS"
 }
 
 deploy_cloudformation_stack() {
@@ -597,7 +577,11 @@ print_next_steps() {
 }
 
 main() {
-    echo "${BLUE}[Haitam Bidiouane (@sch0penheimer)]: AWS DevSecOps Hybrid CI/CD Platform Deployment Script${NOCOLOR}"
+    echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════════════════╗${NOCOLOR}"
+    echo -e "${BLUE}║                    AWS DevSecOps Hybrid CI/CD Platform                       ║${NOCOLOR}"
+    echo -e "${BLUE}║                         Deployment Script (bash) v2.0                        ║${NOCOLOR}"
+    echo -e "${BLUE}║${NOCOLOR}                  Author: Haitam Bidiouane (@sch0penheimer)                   ${BLUE}║${NOCOLOR}"
+    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════╝${NOCOLOR}"
     echo
     
     if [[ "$SHOW_HELP" == true ]]; then
@@ -621,7 +605,10 @@ main() {
         exit 0
     fi
     
-    #- Deploy infrastructure or skip -#
+    #- I. Create Lambda ZIP package -#
+    create_lambda_package
+    
+    #- II. Deploy platform infrastructure (or skip) -#
     local terraform_outputs_file=""
     if [[ "$SKIP_INFRASTRUCTURE" == false ]]; then
         echo
@@ -632,8 +619,6 @@ main() {
             
             #- 1) Update AppSpec files with Terraform outputs -#
             update_appspec_files "$terraform_outputs_file"
-            #- 2) Update lambda .env with Terraform outputs -#
-            update_lambda_env_file "$terraform_outputs_file"
         else
             log_message "Skipping infrastructure deployment. Will use existing infrastructure." "WARNING"
         fi
@@ -641,13 +626,10 @@ main() {
         log_message "Infrastructure deployment skipped as requested." "WARNING"
     fi
 
-    #- I. Create Lambda ZIP package -#
-    create_lambda_package
-    
-    #- II. Deploy CloudFormation pipeline stack -#
+    #- III. Deploy CloudFormation pipeline stack -#
     deploy_cloudformation_stack "$terraform_outputs_file"
 
-    #- III. Print guiding next steps -#
+    #- IV. Print guiding next steps -#
     print_next_steps
 }
 
