@@ -351,6 +351,11 @@ Resources:
       Code:
         S3Bucket: !Ref LambdaS3Bucket
         S3Key: !Ref LambdaS3Key
+      Environment:
+        Variables:
+          AWS_REGION: !Ref AWS::Region
+          S3_ARTIFACT_BUCKET_NAME: !Ref PipelineArtifactS3Bucket
+          AWS_PARTITION: aws
       Timeout: 10
       Tags:
         - Key: pipeline-name
