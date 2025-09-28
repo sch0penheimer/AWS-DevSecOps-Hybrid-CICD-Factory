@@ -69,15 +69,16 @@ show_help() {
     echo "    --help, -h                      Show this help message"
     echo
     echo -e "${CYAN}EXAMPLES:${NOCOLOR}"
-    echo -e "    $0                                    ${GREEN}#- Full deployment with new infrastructure -#${NOCOLOR}"
-    echo -e "    $0 --skip-infrastructure              ${GREEN}#- Deploy only CI/CD pipeline to existing infrastructure -#${NOCOLOR}"
-    echo -e "    $0 --destroy-infrastructure           ${GREEN}#- Destroy infrastructure and exit -#${NOCOLOR}"
+    echo -e "    $0                                    ${BLUE}#- Full deployment with new infrastructure -#${NOCOLOR}"
+    echo -e "    $0 --skip-infrastructure              ${BLUE}#- Deploy only CI/CD pipeline to existing infrastructure -#${NOCOLOR}"
+    echo -e "    $0 --destroy-infrastructure           ${BLUE}#- Destroy infrastructure and exit -#${NOCOLOR}"
     echo
     echo -e "${CYAN}PREREQUISITES:${NOCOLOR}"
     echo "    - Bash v4.0+"
     echo "    - AWS CLI v2+"
     echo "    - Terraform v1.0+"
     echo "    - jq (JSON processor)"
+    echo "    - zip & unzip (for Lambda packaging)"
     echo "    - .env file completed with required configuration"
     echo
     echo -e "${CYAN}NOTES:${NOCOLOR}"
@@ -93,12 +94,12 @@ log_message() {
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     case $type in
-        "ERROR")   echo -e "${RED}[$timestamp: ERROR]${NOCOLOR} $message" ;;
-        "WARNING") echo -e "${YELLOW}[$timestamp: WARNING]${NOCOLOR} $message" ;;
-        "SUCCESS") echo -e "${GREEN}[$timestamp: SUCCESS]${NOCOLOR} $message" ;;
-        "INFO")    echo -e "${CYAN}[$timestamp: INFO]${NOCOLOR} $message" ;;
-        "DEBUG")   echo -e "${PURPLE}[$timestamp: DEBUG]${NOCOLOR} $message" ;;
-        *)         echo -e "${BLUE}[$timestamp: LOG]${NOCOLOR} $message" ;;
+        "ERROR")   echo -e "[$timestamp: ${RED}ERROR${NOCOLOR}] $message" ;;
+        "WARNING") echo -e "[$timestamp: ${YELLOW}WARNING${NOCOLOR}] $message" ;;
+        "SUCCESS") echo -e "[$timestamp: ${GREEN}SUCCESS${NOCOLOR}] $message" ;;
+        "INFO")    echo -e "[$timestamp: ${CYAN}INFO${NOCOLOR}] $message" ;;
+        "DEBUG")   echo -e "[$timestamp: ${PURPLE}DEBUG${NOCOLOR}] $message" ;;
+        *)         echo -e "[$timestamp: ${BLUE}LOG${NOCOLOR}] $message" ;;
     esac
 }
 
@@ -580,6 +581,7 @@ main() {
     echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════════════════╗${NOCOLOR}"
     echo -e "${BLUE}║                    AWS DevSecOps Hybrid CI/CD Platform                       ║${NOCOLOR}"
     echo -e "${BLUE}║                         Deployment Script (bash) v2.0                        ║${NOCOLOR}"
+    echo -e "${BLUE}║                                                                              ║${NOCOLOR}"
     echo -e "${BLUE}║${NOCOLOR}                  Author: Haitam Bidiouane (@sch0penheimer)                   ${BLUE}║${NOCOLOR}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════════╝${NOCOLOR}"
     echo
