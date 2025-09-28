@@ -420,7 +420,6 @@ get_terraform_outputs() {
             done
             
             cd "$ROOT_DIR"
-            echo "$outputs_file"
         else
             log_message "Terraform outputs file is empty" "ERROR"
             log_message "This usually means no outputs are defined or infrastructure is not deployed" "ERROR"
@@ -446,14 +445,14 @@ update_appspec_files() {
     fi
     
     #- Get values from Terraform outputs -#
-    local prod_task_definition_arn=$(jq -r '.prod_task_definition_arn.value // empty' "$terraform_outputs_file")
-    local container_name=$(jq -r '.container_name.value // empty' "$terraform_outputs_file")
+    local production_task_definition_arn=$(jq -r '.production_task_definition_arn.value // empty' "$terraform_outputs_file")
+    local production_container_name=$(jq -r '.production_container_name.value // empty' "$terraform_outputs_file")
     
     #- Validation -#
-    if [[ -z "$prod_task_definition_arn" || -z "$container_name" ]]; then
+    if [[ -z "$production_task_definition_arn" || -z "$production_container_name" ]]; then
         log_message "Missing required values for AppSpec update:" "ERROR"
-        log_message "  - prod_task_definition_arn: $prod_task_definition_arn" "DEBUG"
-        log_message "  - container_name: $container_name" "DEBUG"
+        log_message "  - production_task_definition_arn: $production_task_definition_arn" "DEBUG"
+        log_message "  - production_container_name: $production_container_name" "DEBUG"
         exit 1
     fi
 
@@ -467,12 +466,12 @@ update_appspec_files() {
         cp "$prod_appspec" "$prod_appspec.backup"
         
         #- Replace placeholders -#
-        sed -i "s|<TASK_DEFINITION>|$prod_task_definition_arn|g" "$prod_appspec"
-        sed -i "s|<CONTAINER_NAME>|$container_name|g" "$prod_appspec"
+        sed -i "s|<TASK_DEFINITION>|$production_task_definition_arn|g" "$prod_appspec"
+        sed -i "s|<CONTAINER_NAME>|$production_container_name|g" "$prod_appspec"
         
         log_message "Production AppSpec updated successfully:" "SUCCESS"
-        log_message "  - Task Definition: $prod_task_definition_arn" "DEBUG"
-        log_message "  - Container Name: $container_name" "DEBUG"
+        log_message "  - Task Definition: $production_task_definition_arn" "DEBUG"
+        log_message "  - Container Name: $production_container_name" "DEBUG"
     else
         log_message "Production AppSpec file not found: $prod_appspec" "WARNING"
     fi
@@ -652,7 +651,10 @@ main() {
         log_message "Proceeding with platform's Terraform infrastructure deployment:" "INFO"
         
         deploy_infrastructure
-        terraform_outputs_file=$(get_terraform_outputs)
+        
+        get_terraform_outputs
+        
+        terraform_outputs_file="/tmp/terraform_outputs.json"
         
         #- 1) Update AppSpec files with Terraform outputs -#
         update_appspec_files "$terraform_outputs_file"
