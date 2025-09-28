@@ -2,10 +2,11 @@
 #  File: lambda-function/config_manager.py
 #  Description: Configuration management for the DevSecOps Lambda function
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 04/09/2025
+#  Last Modified: 28/09/2025
 #
 #  Purpose: This file handles loading and managing configuration settings
-#           from environment variables, JSON config files, and AWS SSM Parameter Store.
+#           from CloudFormation environment variables, JSON config files, and AWS
+#           SSM Parameter Store.
 ################################################################################
 
 ##-- Imports & Logging Setup --##
@@ -18,28 +19,38 @@ logger = create_component_logger("config-manager")
 
 class ConfigManager:
     def __init__(self):
-        self._load_env()
         with open("config.json") as f:
             self._config = json.load(f)
         self._validate_env()
-    
-    def _load_env(self):
-        if os.path.exists(".env"):
-            with open(".env") as f:
-                for line in f:
-                    if '=' in line and not line.startswith('#'):
-                        k, v = line.strip().split('=', 1)
-                        os.environ.setdefault(k, v)
+
+        logger.info("ConfigManager initialized successfully")
+        logger.debug(f"Using S3 bucket: {self.get_s3_artifact_bucket_name()}")
+        logger.debug(f"Using AWS region: {self.get_aws_region()}")
+        logger.debug(f"Using AWS partition: {self.get_aws_partition()}")
     
     def _validate_env(self):
-        required = ['AWS_REGION', 'S3_ARTIFACT_BUCKET_NAME']
-        missing = [v for v in required if not os.environ.get(v)]
+        required = [
+            'AWS_REGION',
+            'S3_ARTIFACT_BUCKET_NAME'
+        ]
+        
+        missing = [var for var in required if not os.environ.get(var)]
         if missing:
-            raise ValueError(f"Missing env vars: {missing}")
+            error_msg = f"Missing required environment variables: {missing}. These should be set by CloudFormation."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
         os.environ.setdefault('AWS_PARTITION', 'aws')
+        logger.info("Environment validation completed successfully")
     
     def get_s3_artifact_bucket_name(self):
         return os.environ['S3_ARTIFACT_BUCKET_NAME']
+
+    def get_aws_region(self):
+        return os.environ['AWS_REGION']
+    
+    def get_aws_partition(self):
+        return os.environ.get('AWS_PARTITION', 'aws')
     
     def get_severity_mapping(self, severity):
         #- Normalize input severity to match config scale -#
@@ -81,3 +92,4 @@ class ConfigManager:
     
     def get_product_arn(self, region, account_id):
         return f"arn:{os.environ['AWS_PARTITION']}:securityhub:{region}:{account_id}:product/{account_id}/default"
+    
