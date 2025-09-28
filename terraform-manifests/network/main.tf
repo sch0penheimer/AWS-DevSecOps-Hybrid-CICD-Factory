@@ -292,8 +292,4 @@ resource "aws_security_group" "codebuild" {
     Name    = "${var.project_name}-codebuild-security-group"
     Purpose = "dast-build-operations"
   }
-
-  tags = {
-    Name = "${var.project_name}-codebuild-security-group"
-  }
 }
