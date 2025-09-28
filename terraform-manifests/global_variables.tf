@@ -8,9 +8,9 @@
 ################################################################################
 
 variable "project_name" {
-  description     = "aws-devsecops-cicd-platform"
+  description     = "Project name for the AWS DevSecOps CI/CD Platform"
   type            = string
-  default         = "AWS-DevSecOps-CICD-Platform"
+  default         = "devsecops-platform"
 }
 
 variable "aws_account_region" {
