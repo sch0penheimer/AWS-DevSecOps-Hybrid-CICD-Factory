@@ -388,15 +388,51 @@ get_terraform_outputs() {
     
     cd "$TERRAFORM_DIR"
     
-    if ! terraform output -json > /tmp/terraform_outputs.json 2>/dev/null; then
-        log_message " Failed to retrieve Terraform outputs" "ERROR"
+    #- Check if terraform state exists -#
+    if [[ ! -f "terraform.tfstate" ]]; then
+        log_message "No Terraform state file found - infrastructure may not be deployed" "ERROR"
+        cd "$ROOT_DIR"
         exit 1
     fi
     
-    cd "$ROOT_DIR"
+    #- Check if state has resources -#
+    local resource_count=$(terraform show -json 2>/dev/null | jq '.values.root_module.resources | length' 2>/dev/null || echo "0")
+    if [[ "$resource_count" == "0" ]]; then
+        log_message "Terraform state exists but no resources found" "ERROR"
+        cd "$ROOT_DIR"
+        exit 1
+    fi
     
-    log_message "Terraform outputs retrieved successfully" "SUCCESS"
-    echo "/tmp/terraform_outputs.json"
+    #- Generate outputs JSON file -#
+    local outputs_file="/tmp/terraform_outputs.json"
+    
+    log_message "Generating Terraform outputs JSON..." "INFO"
+    
+    if terraform output -json > "$outputs_file" 2>&1; then
+        if [[ -s "$outputs_file" ]]; then
+            local output_count=$(jq 'keys | length' "$outputs_file" 2>/dev/null || echo "0")
+            log_message "Terraform outputs retrieved successfully ($output_count outputs)" "SUCCESS"
+
+            #- Debug: Show found outputs -#
+            log_message "Available outputs:" "DEBUG"
+            jq -r 'keys[]' "$outputs_file" 2>/dev/null | while read -r key; do
+                log_message "  - $key" "DEBUG"
+            done
+            
+            cd "$ROOT_DIR"
+            echo "$outputs_file"
+        else
+            log_message "Terraform outputs file is empty" "ERROR"
+            log_message "This usually means no outputs are defined or infrastructure is not deployed" "ERROR"
+            cd "$ROOT_DIR"
+            exit 1
+        fi
+    else
+        log_message "Failed to retrieve Terraform outputs:" "ERROR"
+        cat "$outputs_file" 2>/dev/null || true
+        cd "$ROOT_DIR"
+        exit 1
+    fi
 }
 
 update_appspec_files() {
@@ -613,19 +649,15 @@ main() {
     #- II. Deploy platform infrastructure (or skip) -#
     local terraform_outputs_file=""
     if [[ "$SKIP_INFRASTRUCTURE" == false ]]; then
-        echo
-        read -p "Do you want to deploy new platform (standard) infrastructure using Terraform? (y/N): " choice
-        if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
-            deploy_infrastructure
-            terraform_outputs_file=$(get_terraform_outputs)
-            
-            #- 1) Update AppSpec files with Terraform outputs -#
-            update_appspec_files "$terraform_outputs_file"
-        else
-            log_message "Skipping infrastructure deployment. Will use existing infrastructure." "WARNING"
-        fi
+        log_message "Proceeding with platform's Terraform infrastructure deployment:" "INFO"
+        
+        deploy_infrastructure
+        terraform_outputs_file=$(get_terraform_outputs)
+        
+        #- 1) Update AppSpec files with Terraform outputs -#
+        update_appspec_files "$terraform_outputs_file"
     else
-        log_message "Infrastructure deployment skipped as requested." "WARNING"
+        log_message "Platform Infrastructure deployment skipped as requested." "WARNING"
     fi
 
     #- III. Deploy CloudFormation pipeline stack -#
