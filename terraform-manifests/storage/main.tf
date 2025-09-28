@@ -78,7 +78,7 @@ resource "aws_s3_bucket_policy" "lambda_bucket_policy" {
           "s3:GetObject",
           "s3:GetObjectVersion"
         ]
-        Resource = "${aws_s3_bucket.lambda_packages.arn}/*"
+        Resource = "${aws_s3_bucket.lambda_package.arn}/*"
       },
       {
         Sid    = "AllowCloudFormationAccess"
@@ -90,7 +90,7 @@ resource "aws_s3_bucket_policy" "lambda_bucket_policy" {
           "s3:GetObject",
           "s3:GetObjectVersion"
         ]
-        Resource = "${aws_s3_bucket.lambda_packages.arn}/*"
+        Resource = "${aws_s3_bucket.lambda_package.arn}/*"
       },
       {
         Sid    = "DenyInsecureTransport"
@@ -98,8 +98,8 @@ resource "aws_s3_bucket_policy" "lambda_bucket_policy" {
         Principal = "*"
         Action = "s3:*"
         Resource = [
-          aws_s3_bucket.lambda_packages.arn,
-          "${aws_s3_bucket.lambda_packages.arn}/*"
+          aws_s3_bucket.lambda_package.arn,
+          "${aws_s3_bucket.lambda_package.arn}/*"
         ]
         Condition = {
           Bool = {
