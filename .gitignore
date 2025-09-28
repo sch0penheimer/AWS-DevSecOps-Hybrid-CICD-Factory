@@ -1,2 +1,15 @@
 .env
 lambda-function/.env
+
+#- Terraform state / generated files -#
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+
+#- Terraform output JSON files -#
+/tmp/terraform_outputs.json
+terraform_outputs.json
+outputs.json
