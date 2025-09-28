@@ -140,7 +140,7 @@ resource "aws_launch_template" "production" {
 resource "aws_autoscaling_group" "staging" {
   name                = "${var.project_name}-staging-autoscaling-group"
   vpc_zone_identifier = var.private_subnet_ids
-  health_check_type   = "EC2"
+  health_check_type   = "ELB"
   health_check_grace_period = 300
 
   min_size         = var.asg_config.staging.min_size
@@ -328,6 +328,7 @@ resource "aws_lb_target_group" "production" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = var.vpc_id
+  target_type = "instance"
 
   health_check {
     enabled             = true
@@ -353,7 +354,7 @@ resource "aws_lb_target_group" "staging" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = var.vpc_id
-  target_type = "ip"
+  target_type = "instance"
 
   health_check {
     enabled             = true
@@ -383,6 +384,8 @@ resource "aws_lb_listener" "production" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.production.arn
   }
+
+  depends_on = [aws_lb_target_group.production] 
 }
 
 #-- ALB Listener for Staging --#
@@ -395,6 +398,8 @@ resource "aws_lb_listener" "staging" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.staging.arn
   }
+
+  depends_on = [aws_lb_target_group.staging] 
 }
 
 #-- ECS Capacity Providers to link Autoscaling Groups --#
@@ -424,7 +429,7 @@ resource "aws_ecs_capacity_provider" "production" {
       target_capacity = 100
     }
 
-    managed_termination_protection = "ENABLED"
+    managed_termination_protection = "DISABLED"
   }
 }
 
