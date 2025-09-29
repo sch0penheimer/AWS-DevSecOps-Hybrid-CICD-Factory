@@ -647,7 +647,7 @@ Resources:
               OutputArtifacts: 
                 - Name: ClairSASTArtifacts
               Configuration:
-                ProjectName: !Ref ClairSAST-StagingBuildProject
+                ProjectName: !Ref ClairSASTStagingBuildProject
               RunOrder: 4
 
         #- 4) DAST Stage -#
@@ -794,7 +794,7 @@ Resources:
           Value: !Sub ${AWS::StackName}-devsecops-pipeline
 
   #- 3. Clair SCA/SAST + Staging Build Project -#
-  ClairSAST-StagingBuildProject:
+  ClairSASTStagingBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Description: ECR Container Security (via Clair) Analysis + Staging Build Project
@@ -875,7 +875,7 @@ Resources:
           Value: !Sub ${AWS::StackName}-devsecops-pipeline
 
   #- 5. Production Deployment. This is not really a build project as its handled by CodeDeploy and -#
-  #-                            the associated CodeDeploy AppSpec file.                             -#
+  #-                            the associated CodeDeploy AppSpec file.                            -#
 
   #- IAM Roles -#
   CodeBuildServiceRole:
