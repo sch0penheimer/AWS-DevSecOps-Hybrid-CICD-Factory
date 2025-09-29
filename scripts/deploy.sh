@@ -483,9 +483,6 @@ update_appspec_files() {
     if [[ -f "$prod_appspec" ]]; then
         log_message "Updating production AppSpec file: $prod_appspec" "INFO"
         
-        #- Create backup -#
-        cp "$prod_appspec" "$prod_appspec.backup"
-        
         #- Replace placeholders -#
         sed -i "s|<TASK_DEFINITION>|$production_task_definition_arn|g" "$prod_appspec"
         sed -i "s|<CONTAINER_NAME>|$production_container_name|g" "$prod_appspec"
@@ -519,20 +516,33 @@ deploy_cloudformation_stack() {
         log_message "Using Terraform outputs for infrastructure parameters:" "INFO"
         
         local staging_ecs_cluster=$(jq -r '.staging_ecs_cluster_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Staging ECS Cluster: $staging_ecs_cluster" "DEBUG"
         local staging_ecs_service=$(jq -r '.staging_ecs_service_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Staging ECS Service: $staging_ecs_service" "DEBUG"
         local prod_ecs_cluster=$(jq -r '.prod_ecs_cluster_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Production ECS Cluster: $prod_ecs_cluster" "DEBUG"
         local prod_ecs_service=$(jq -r '.prod_ecs_service_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Production ECS Service: $prod_ecs_service" "DEBUG"
         local prod_target_group=$(jq -r '.prod_target_group_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Production Target Group: $prod_target_group" "DEBUG"
         local ecr_registry_name=$(jq -r '.ecr_repository_name.value // empty' "$terraform_outputs_file")
+        log_message "  - ECR Repository Name: $ecr_registry_name" "DEBUG"
         local artifact_bucket=$(jq -r '.artifact_store_bucket_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Artifact S3 Bucket: $artifact_bucket" "DEBUG"
         local lambda_bucket=$(jq -r '.lambda_bucket_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Lambda S3 Bucket: $lambda_bucket" "DEBUG"
         local lambda_handler="lambda_handler.lambda_handler"
         local lambda_s3_key=$(jq -r '.lambda_s3_key.value // empty' "$terraform_outputs_file")
+        log_message "  - Lambda S3 Key: $lambda_s3_key" "DEBUG"
         local app_url_for_dast=$(jq -r '.staging_alb_dns_name.value // empty' "$terraform_outputs_file")
+        log_message "  - App URL for DAST: $app_url_for_dast" "DEBUG"
         local vpc_id=$(jq -r '.vpc_id.value // empty' "$terraform_outputs_file")
+        log_message "  - VPC ID: $vpc_id" "DEBUG"
         local private_subnets=$(jq -r '.private_subnet_ids.value | join(",") // empty' "$terraform_outputs_file")
+        log_message "  - Private Subnet IDs: $private_subnets" "DEBUG"
         local codebuild_sg=$(jq -r '.codebuild_security_group_id.value // empty' "$terraform_outputs_file")
-        
+        log_message "  - CodeBuild Security Group ID: $codebuild_sg" "DEBUG"
+
         parameters+=(
             "StagingECSCluster=$staging_ecs_cluster"
             "StagingECSService=$staging_ecs_service"
