@@ -374,12 +374,33 @@ destroy_infrastructure() {
     
     if [[ "$confirmation" != "DESTROY" ]]; then
         log_message "Destruction cancelled by user" "INFO"
+        cd "$ROOT_DIR"
         exit 0
     fi
     
-    terraform destroy -auto-approve
-
-    log_message "Terraform infrastructure destroyed successfully" "SUCCESS"
+    log_message "Proceeding with infrastructure destruction..." "INFO"
+    
+    if terraform destroy -auto-approve; then
+        log_message "Terraform infrastructure destroyed successfully" "SUCCESS"
+        
+        #- Clean up state files -#
+        log_message "Cleaning up Terraform state files" "INFO"
+        
+        rm -f terraform.tfstate terraform.tfstate.backup
+        rm -f .terraform.lock.hcl
+        rm -f tfplan
+        rm -rf .terraform/
+        log_message "Terraform directory cleaned up" "INFO"
+        
+        log_message "State cleanup completed - ready for fresh deployment" "SUCCESS"
+        
+    else
+        log_message "Terraform destruction failed!" "ERROR"
+        log_message "You may need to manually clean up resources in AWS Console" "WARNING"
+        cd "$ROOT_DIR"
+        exit 1
+    fi
+    
     cd "$ROOT_DIR"
 }
 
@@ -396,7 +417,7 @@ get_terraform_outputs() {
     fi
     
     #- Check if state has resources -#
-    local resource_count=$(terraform show -json 2>/dev/null | jq '.values.root_module.resources | length' 2>/dev/null || echo "0")
+    local resource_count=$(terraform show -json 2>/dev/null | jq -r '[.values.root_module.child_modules[]?.resources // [] | length] | add // 0' 2>/dev/null || echo "0")
     if [[ "$resource_count" == "0" ]]; then
         log_message "Terraform state exists but no resources found" "ERROR"
         cd "$ROOT_DIR"
