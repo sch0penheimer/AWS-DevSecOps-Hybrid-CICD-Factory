@@ -88,7 +88,8 @@ output "production_service_arn" {
 }
 
 output "production_container_name" {
-  value = "${var.project_name}-app-prod-container (Used by CloudFormation CodeBuild's AppSpec)"
+  description = "Production App Container Name (Used by CloudFormation CodeBuild's AppSpec)"
+  value = "${var.project_name}-app-prod-container"
 }
 
 output "staging_task_definition_arn" {
