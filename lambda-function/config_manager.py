@@ -30,7 +30,6 @@ class ConfigManager:
     
     def _validate_env(self):
         required = [
-            'AWS_REGION',
             'S3_ARTIFACT_BUCKET_NAME'
         ]
         
