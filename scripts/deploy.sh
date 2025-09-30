@@ -500,7 +500,7 @@ deploy_cloudformation_stack() {
     
     log_message "Deploying CloudFormation CI/CD pipeline:" "INFO"
     
-    local stack_name="aws-devsecops-hybrid-cicd-platform"
+    local stack_name="devsecops-cloudformation"
     local template_file="$CLOUDFORMATION_DIR/codepipeline.yaml"
     
     if [[ ! -f "$template_file" ]]; then
