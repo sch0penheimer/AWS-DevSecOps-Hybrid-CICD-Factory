@@ -14,28 +14,28 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Install Phase begun."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Install Phase begun."
       - echo "Updating package lists:"
       - apt-get update
       - echo "Installing system packages:"
       - apt-get -y install jq python3-pip python3-dev
       - echo "Installing/Upgrading the AWS CLI:"
       - pip3 install --upgrade awscli
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation Phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installation Phase completed successfully."
 
   pre_build:
     commands:
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase started."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build phase started."
       - echo "Starting Docker Daemon:"
       - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 --storage-driver=overlay&
       - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Docker daemon ready."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Docker daemon ready."
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build Phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."
 
   build:
     commands:
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase started."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build phase started."
       #- Wait for ECR's Clair scan to complete -#
       - |
         stat="IN_PROGRESS"
@@ -48,7 +48,7 @@ phases:
           sleep 5
         done
       - aws ecr describe-image-scan-findings --repository-name $ECR_REPO_NAME --image-id imageTag=$TAG > ecr_scan_result.json
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build Phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build Phase completed successfully."
 
   post_build:
     commands:
@@ -67,11 +67,11 @@ phases:
         elif grep -E 'MEDIUM' ecr_scan_result.json; then
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json ecr_scan_result.json && echo "LAMBDA_SUCCEEDED" || echo "LAMBDA_FAILED"
         fi
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Deploying to ECS:"
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to ECS:"
       - aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Generating imagedefinitions.json for CodeDeploy ECS deployment:"
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating imagedefinitions.json for CodeDeploy ECS deployment:"
       - printf '[{"name":"%s","imageUri":"%s"}]' $ECS_SERVICE_NAME $ECR_REPO_URI:$TAG > imagedefinitions.json
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Post-build phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Post-build phase completed successfully."
 
 artifacts:
   type: zip
