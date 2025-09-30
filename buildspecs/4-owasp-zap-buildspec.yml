@@ -37,14 +37,14 @@ phases:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build phase started."
       - echo "Starting OWASP ZAP daemon:"
-      - echo "Application URL for DAST: $APPLICATION_URL"
+      - echo "Application URL for DAST -> $APPLICATION_URL"
       - export DISPLAY=:99
       - Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
       - sleep 2
       - echo "Starting ZAP in daemon mode..."
       - /opt/zap/zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true > /tmp/zap.log 2>&1 &
       - ZAP_PID=$!
-      - echo "ZAP PID: $ZAP_PID"
+      - echo "ZAP PID -> $ZAP_PID"
       - echo "Waiting for ZAP to start..."
       - sleep 30
       - echo "Testing ZAP connectivity:"
@@ -67,7 +67,7 @@ phases:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build phase started."
       - echo "Starting OWASP ZAP Spider Scan:"
       - spider_scanid=$(curl "http://localhost:8080/JSON/spider/action/scan/?url=$APPLICATION_URL&recurse=true" | jq -r '.scan')
-      - echo "Spider Scan ID: $spider_scanid"
+      - echo "Spider Scan ID -> $spider_scanid"
       - echo "Waiting for spider scan to complete:"
       - |
         stat=0;
@@ -82,7 +82,7 @@ phases:
         done
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting OWASP ZAP Active Scan:"
       - active_scanid=$(curl "http://localhost:8080/JSON/ascan/action/scan/?url=$APPLICATION_URL&recurse=true&inScopeOnly=false" | jq -r '.scan')
-      - echo "Active Scan ID: $active_scanid"
+      - echo "Active Scan ID -> $active_scanid"
       - echo "Waiting for active scan to complete:"
       - |
         stat=0;
@@ -108,10 +108,10 @@ phases:
       - low_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Low // 0')
       - info_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Informational // 0')
       - echo "=== OWASP ZAP DAST Scan Results ==="
-      - echo "High severity alerts: $high_alerts"
-      - echo "Medium severity alerts: $medium_alerts"
-      - echo "Low severity alerts: $low_alerts"
-      - echo "Informational alerts: $info_alerts"
+      - echo "High severity alerts -> $high_alerts"
+      - echo "Medium severity alerts -> $medium_alerts"
+      - echo "Low severity alerts -> $low_alerts"
+      - echo "Informational alerts -> $info_alerts"
       - echo "Preparing Security Hub payload:"
       - |
         jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"OWASP-ZAP\", \
@@ -139,7 +139,7 @@ phases:
       - curl "http://localhost:8080/JSON/core/action/shutdown/" || true
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] OWASP ZAP DAST analysis completed."
     finally:
-      - echo "Cleanup: Ensuring ZAP processes are terminated"
+      - echo "[Cleanup] Ensuring ZAP processes are terminated"
       - pkill -f zap.sh || true
       - pkill -f java.*zap || true
 

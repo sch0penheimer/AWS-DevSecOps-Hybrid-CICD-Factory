@@ -17,7 +17,7 @@ phases:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Install Phase begun."
       - echo "Installing Snyk:"
       - npm install -g snyk
-      - echo "Snyk version: $(snyk --version)"
+      - echo "Snyk version -> $(snyk --version)"
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installation Phase completed successfully."
 
   pre_build:
