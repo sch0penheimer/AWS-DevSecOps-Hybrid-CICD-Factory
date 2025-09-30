@@ -18,8 +18,7 @@ phases:
       - echo "Installing Snyk:"
       - npm install -g snyk
       - echo "Snyk version: $(snyk --version)"
-    finally:
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of the install phase (always runs)."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation Phase completed successfully."
 
   pre_build:
     commands:
@@ -30,6 +29,7 @@ phases:
       - echo "Docker daemon ready."
       - echo "Logging into ECR:"
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build Phase completed successfully."
   
   build:
     commands:
@@ -43,6 +43,7 @@ phases:
       - snyk container test $ECR_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION --file=$DOCKERFILE_NAME --json --severity-threshold=high > snyk-results.json || echo "Snyk SAST Scan completed with findings"
       - echo "Tagging image for ECR:"
       - docker tag $ECR_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $ECR_REPO_URI:latest
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build Phase completed successfully."
 
   post_build:
     commands:

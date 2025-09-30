@@ -31,10 +31,8 @@ phases:
       - mv ZAP_2.14.0 /opt/zap
       - chmod +x /opt/zap/zap.sh
       - echo "ZAP installation completed."
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation phase completed successfully."
-    finally:
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of the install phase (always runs)."
-
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation Phase completed successfully."
+  
   pre_build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase started."
@@ -61,7 +59,7 @@ phases:
           fi
         done
       - curl "http://localhost:8080/JSON/core/view/version/" | jq .
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build Phase completed successfully."
 
 
   build:
@@ -99,7 +97,7 @@ phases:
         done
       - echo "Generating scan report:"
       - curl "http://localhost:8080/OTHER/core/other/jsonreport/" | jq . > zap-scan-results.json
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build Phase completed successfully."
 
   post_build:
     commands:
