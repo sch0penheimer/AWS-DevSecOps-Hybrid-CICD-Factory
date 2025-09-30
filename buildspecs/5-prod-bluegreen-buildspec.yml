@@ -1,0 +1,143 @@
+################################################################################
+#  File: buildspecs/5-prod-bluegreen-buildspec.yml
+#  Description: Buildspec for Blue/Green deployment in production environment
+#  Author: Haitam Bidiouane (@sch0penheimer)
+#  Last Modified: 30/09/2025
+#
+#  Purpose: 
+#    This buildspec file is designed to facilitate a Blue/Green deployment strategy
+#    for a production environment using AWS ECS. It handles the deployment of a new
+#    version of the application while ensuring minimal downtime and risk through
+#    automated Blue/Green deployment with health checks and rollback capabilities.
+################################################################################
+
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Install Phase begun."
+      - echo "Updating package lists:"
+      - apt-get update
+      - echo "Installing system packages:"
+      - apt-get -y install jq python3-pip python3-dev curl
+      - echo "Installing/Upgrading the AWS CLI:"
+      - pip3 install --upgrade awscli
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Installation phase completed successfully."
+    finally:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of the install phase (always runs)."
+
+  pre_build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase started."
+      - echo "ECS Cluster: $ECS_CLUSTER_NAME"
+      - echo "ECS Service: $ECS_SERVICE_NAME"
+      - echo "ECR Repository: $ECR_REPO_URI"
+      - echo "Target Group: $TARGET_GROUP_ARN"
+      - echo "Region: $AWS_DEFAULT_REGION"
+      - echo "\n"
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Logging in to Amazon ECR :"
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Getting current task definition :"
+      - TASK_DEFINITION=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].taskDefinition' --output text)
+      - echo "Current task definition: $TASK_DEFINITION"
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Pre-build phase completed successfully."
+
+  build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase started."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Starting Blue/Green deployment process :"
+      - |
+        #- Current task definition -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Retrieving current task definition details :"
+        CURRENT_TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_DEFINITION --query 'taskDefinition')
+        
+        #- Extract image URI -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Extracting new image URI from imagedefinitions.json :"
+        NEW_IMAGE_URI=$(cat imagedefinitions.json | jq -r '.[0].imageUri')
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: New image URI: $NEW_IMAGE_URI"
+        
+        #- Validate image exists in ECR -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Validating new image exists in ECR :"
+        IMAGE_TAG=$(echo $NEW_IMAGE_URI | cut -d':' -f2)
+        REPO_NAME=$(echo $NEW_IMAGE_URI | cut -d'/' -f2 | cut -d':' -f1)
+        aws ecr describe-images --repository-name $REPO_NAME --image-ids imageTag=$IMAGE_TAG > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Image validation successful."
+        else
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: ERROR - Image not found in ECR. Deployment failed."
+          exit 1
+        fi
+        
+        #- New task definition with updated image -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Creating new task definition with updated image :"
+        NEW_TASK_DEF=$(echo $CURRENT_TASK_DEF | jq --arg IMAGE "$NEW_IMAGE_URI" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
+        
+        #- Register new task definition -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Registering new task definition :"
+        NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEF | aws ecs register-task-definition --cli-input-json file:///dev/stdin --query 'taskDefinition.taskDefinitionArn' --output text)
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: New task definition ARN: $NEW_TASK_DEF_ARN"
+        
+        #- Get current service status before deployment -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Getting current service status :"
+        CURRENT_DESIRED_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].desiredCount' --output text)
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Current desired count: $CURRENT_DESIRED_COUNT"
+        
+        #- Update ECS service (automatically triggers blue/green deployment) -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Updating ECS service to trigger Blue/Green deployment :"
+        aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN --force-new-deployment
+        
+        #- Monitor deployment progress -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Monitoring deployment progress :"
+        DEPLOYMENT_ID=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].deployments[?status==`PRIMARY`].id' --output text)
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Primary deployment ID: $DEPLOYMENT_ID"
+        
+        #- Wait for deployment to complete with timeout -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Waiting for deployment to complete (timeout: 20 minutes) :"
+        timeout 1200 aws ecs wait services-stable --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME
+        
+        if [ $? -eq 0 ]; then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Blue/Green deployment completed successfully!"
+        else
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Deployment timeout or failed. Checking service status :"
+          exit 1
+        fi
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Build phase completed successfully."
+
+  post_build:
+    commands:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Post-build phase started."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Deployment completed on $(date)"
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Verifying service health and deployment status :"
+      - |
+        #- Verify deployment status -#
+        DEPLOYMENT_STATUS=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' --output text)
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Current PRIMARY deployment task definition: $DEPLOYMENT_STATUS"
+        
+        #- Check service health -#
+        RUNNING_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].runningCount' --output text)
+        DESIRED_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].desiredCount' --output text)
+        
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Service Health Check:"
+        echo "  - Running count: $RUNNING_COUNT"
+        echo "  - Desired count: $DESIRED_COUNT"
+        
+        if [ "$RUNNING_COUNT" = "$DESIRED_COUNT" ]; then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: ✓ Service is healthy - all desired tasks are running"
+        else
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')]: ✗ Service health check failed - running count does not match desired count"
+          exit 1
+        fi
+        
+        #- Final deployment details -#
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Final deployment details:"
+        aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].deployments[?status==`PRIMARY`]' --output table
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Production Blue/Green deployment analysis completed successfully."
+    finally:
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Cleanup of post-build phase (always runs)."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')]: Blue/Green deployment process finished."
+
+artifacts:
+  type: zip
+  files:
+    - imagedefinitions.json
+    - '**/*'
