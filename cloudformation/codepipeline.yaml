@@ -117,6 +117,7 @@ Parameters:
     Description: Manual Approval / DevOps Administrator Email Address
     Type: String
 
+
 ##-- Metadata Section for CloudFormation UI Grouping--##
 Metadata:
   'AWS::CloudFormation::Interface':
@@ -353,7 +354,6 @@ Resources:
         S3Key: !Ref LambdaS3Key
       Environment:
         Variables:
-          AWS_REGION: !Ref AWS::Region
           S3_ARTIFACT_BUCKET_NAME: !Ref PipelineArtifactS3Bucket
           AWS_PARTITION: aws
       Timeout: 10
@@ -381,7 +381,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 'codepipeline:StartPipelineExecution'
-                Resource: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:pipeline/${AppPipeline}'
+                Resource: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-pipeline'
 
   #- CloudWatch Event Rule for CodeConnections -#
   CloudWatchEventRule:
@@ -396,7 +396,7 @@ Resources:
           state:
             - AVAILABLE
       Targets:
-        - Arn: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:pipeline/${AppPipeline}'
+        - Arn: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-pipeline'
           RoleArn: !GetAtt CloudWatchEventRole.Arn
           Id: codepipeline-AppPipeline
       
@@ -564,34 +564,6 @@ Resources:
       Statistic: "Sum"
       Period: 1800
 
-  #- CodeDeploy (For Production Deployment) Resources / Components -#
-  CodeDeployApplication:
-    Type: AWS::CodeDeploy::Application
-    Properties:
-      ApplicationName: !Sub ${AWS::StackName}-devsecops-prod-deployment
-      ComputePlatform: ECS
-
-  CodeDeployDeploymentGroup:
-    Type: AWS::CodeDeploy::DeploymentGroup
-    Properties:
-      ApplicationName: !Ref CodeDeployApplication
-      DeploymentGroupName: !Sub "${AWS::StackName}-devsecops-prod-deployment-group"
-      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
-      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
-      AutoRollbackConfiguration:
-        Enabled: true
-        Events:
-          - DEPLOYMENT_FAILURE
-      DeploymentStyle:
-        DeploymentType: BLUE_GREEN
-        DeploymentOption: WITH_TRAFFIC_CONTROL
-      ECSServices:
-        - ClusterName: !Ref ProdECSCluster
-          ServiceName: !Ref ProdECSService
-      LoadBalancerInfo:
-        TargetGroupInfoList:
-          - Name: !Ref ProdTargetGroup
-
   ##-- CI/CD CodePipeline --##
   AppPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
@@ -699,23 +671,17 @@ Resources:
         #- 6) Production Deployment Stage -#
         - Name: Production-Deployment-Stage
           Actions:
-            - Name: Production-Deployment-Action
+            - Name: Production-BlueGreen-Deployment-Action
               InputArtifacts:
                 - Name: SourceCodeArtifactOutput
-                - Name: SASTArtifacts
                 - Name: ClairSASTArtifacts
               ActionTypeId:
-                Category: Deploy
+                Category: Build
                 Owner: AWS
                 Version: '1'
-                Provider: CodeDeploy
+                Provider: CodeBuild
               Configuration:
-                ApplicationName: !Ref CodeDeployApplication
-                DeploymentGroupName: !Ref CodeDeployDeploymentGroup
-                AppSpecTemplateArtifact: SourceCodeArtifactOutput
-                TaskDefinitionTemplateArtifact: ClairSASTArtifacts
-                TaskDefinitionTemplatePath: imagedefinitions.json
-                AppSpecTemplatePath: 5-prod-codedeploy-appspec.yml
+                ProjectName: !Ref ProductionBlueGreenBuildProject
               RunOrder: 7
       
       ArtifactStore:
@@ -740,7 +706,7 @@ Resources:
       EncryptionKey: !GetAtt PipelineKMSKey.Arn
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
         EnvironmentVariables:
         - Name: GIT_REPOSITORY_ID
@@ -757,7 +723,7 @@ Resources:
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
         Type: CODEPIPELINE
-        BuildSpec: 1-secretsanalysis-buildspec.yml
+        BuildSpec: buildspecs/1-secretsanalysis-buildspec.yml
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref PipelineCloudWatchLogGroup
@@ -778,7 +744,7 @@ Resources:
       EncryptionKey: !GetAtt PipelineKMSKey.Arn
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
         EnvironmentVariables: 
         - Name: SNYK_API_KEY
@@ -798,7 +764,7 @@ Resources:
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
         Type: CODEPIPELINE
-        BuildSpec: 2-snyk-sast-buildspec.yml
+        BuildSpec: buildspecs/2-snyk-sast-buildspec.yml
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref PipelineCloudWatchLogGroup
@@ -819,7 +785,7 @@ Resources:
       EncryptionKey: !GetAtt PipelineKMSKey.Arn
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
         EnvironmentVariables:
         - Name: ECR_REPO_NAME
@@ -840,7 +806,7 @@ Resources:
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
         Type: CODEPIPELINE
-        BuildSpec: 3-clair-sca-staging-buildspec.yml
+        BuildSpec: buildspecs/3-clair-sca-staging-buildspec.yml
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref PipelineCloudWatchLogGroup
@@ -862,7 +828,7 @@ Resources:
       EncryptionKey: !GetAtt PipelineKMSKey.Arn
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:4.0
+        Image: aws/codebuild/standard:5.0
         Type: LINUX_CONTAINER
         PrivilegedMode: true
         EnvironmentVariables:
@@ -879,7 +845,7 @@ Resources:
           - !Ref CodeBuildSecurityGroupId
       Source:
         Type: CODEPIPELINE
-        BuildSpec: 4-owasp-zap-buildspec.yml
+        BuildSpec: buildspecs/4-owasp-zap-buildspec.yml
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref PipelineCloudWatchLogGroup
@@ -890,8 +856,43 @@ Resources:
         - Key: pipeline-name
           Value: !Sub ${AWS::StackName}-pipeline
 
-  #- 5. Production Deployment. This is not really a build project as its handled by CodeDeploy and -#
-  #-                            the associated CodeDeploy AppSpec file.                            -#
+  #- 5. Production Blue/Green Deployment Build Project -#
+  ProductionBlueGreenBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Description: Production Blue/Green Deployment using ECS Service Updates
+      Artifacts:
+        Type: CODEPIPELINE
+      EncryptionKey: !GetAtt PipelineKMSKey.Arn
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+        - Name: ECR_REPO_URI
+          Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRegistryName}
+        - Name: ECS_CLUSTER_NAME
+          Value: !Ref ProdECSCluster
+        - Name: ECS_SERVICE_NAME
+          Value: !Ref ProdECSService
+        - Name: TARGET_GROUP_ARN
+          Value: !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/${ProdTargetGroup}/*
+        - Name: AWS_DEFAULT_REGION
+          Value: !Ref AWS::Region
+        PrivilegedMode: true
+      ServiceRole: !Ref CodeBuildServiceRole
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspecs/5-prod-bluegreen-buildspec.yml
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Ref PipelineCloudWatchLogGroup
+          Status: ENABLED
+          StreamName: ProductionDeployment
+      QueuedTimeoutInMinutes: 15
+      Tags:
+        - Key: pipeline-name
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- IAM Roles -#
   CodeBuildServiceRole:
@@ -928,23 +929,11 @@ Resources:
                   - kms:*
                   - ecr:*
                   - ecs:*
+                  - ec2:*
                 Resource: '*'
       Path: /
-
-  CodeDeployServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - codedeploy.amazonaws.com
-            Action: 'sts:AssumeRole'
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
-      Path: /
+        - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -994,14 +983,6 @@ Resources:
                 Resource: !Ref CodeConnection
               - Effect: Allow
                 Action:
-                  - 'codedeploy:CreateDeployment'
-                  - 'codedeploy:GetApplicationRevision'
-                  - 'codedeploy:GetDeployment'
-                  - 'codedeploy:GetDeploymentConfig'
-                  - 'codedeploy:RegisterApplicationRevision'
-                Resource: '*'
-              - Effect: Allow
-                Action:
                   - 'codebuild:BatchGetBuilds'
                   - 'codebuild:StartBuild'
                 Resource: '*'
@@ -1048,7 +1029,7 @@ Resources:
                   - 'ecr:*'
                 Resource: '*'
 
-##-- OUTPUTS SECTION --##
+##-- Outputs Section --##
 Outputs:
   ArtifactBucketName:
     Description: S3 Bucket Name of the Artifact Repository
@@ -1069,3 +1050,5 @@ Outputs:
   CodeBuildServiceRoleArn:
     Description: Service Role for the CodeBuild Projects
     Value: !GetAtt CodeBuildServiceRole.Arn
+
+
