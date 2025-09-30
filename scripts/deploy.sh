@@ -455,46 +455,6 @@ get_terraform_outputs() {
     fi
 }
 
-update_appspec_files() {
-    local terraform_outputs_file="$1"
-    
-    log_message "Updating AppSpec files with Terraform outputs:" "INFO"
-    
-    if [[ ! -f "$terraform_outputs_file" ]]; then
-        log_message "Terraform outputs file not found - skipping AppSpec updates" "WARNING"
-        return 0
-    fi
-    
-    #- Get values from Terraform outputs -#
-    local production_task_definition_arn=$(jq -r '.production_task_definition_arn.value // empty' "$terraform_outputs_file")
-    local production_container_name=$(jq -r '.production_container_name.value // empty' "$terraform_outputs_file")
-    
-    #- Validation -#
-    if [[ -z "$production_task_definition_arn" || -z "$production_container_name" ]]; then
-        log_message "Missing required values for AppSpec update:" "ERROR"
-        log_message "  - production_task_definition_arn: $production_task_definition_arn" "DEBUG"
-        log_message "  - production_container_name: $production_container_name" "DEBUG"
-        exit 1
-    fi
-
-    #- Update AppSpec file -#
-    local prod_appspec="$ROOT_DIR/appspecs/5-prod-codedeploy-appspec.yml"
-    
-    if [[ -f "$prod_appspec" ]]; then
-        log_message "Updating production AppSpec file: $prod_appspec" "INFO"
-        
-        #- Replace placeholders -#
-        sed -i "s|<TASK_DEFINITION>|$production_task_definition_arn|g" "$prod_appspec"
-        sed -i "s|<CONTAINER_NAME>|$production_container_name|g" "$prod_appspec"
-        
-        log_message "Production AppSpec updated successfully:" "SUCCESS"
-        log_message "  - Task Definition: $production_task_definition_arn" "DEBUG"
-        log_message "  - Container Name: $production_container_name" "DEBUG"
-    else
-        log_message "Production AppSpec file not found: $prod_appspec" "WARNING"
-    fi
-}
-
 deploy_cloudformation_stack() {
     local terraform_outputs_file="$1"
     
@@ -686,9 +646,6 @@ main() {
         get_terraform_outputs
         
         terraform_outputs_file="/tmp/terraform_outputs.json"
-        
-        #- 1) Update AppSpec files with Terraform outputs -#
-        update_appspec_files "$terraform_outputs_file"
     else
         log_message "Platform Infrastructure deployment skipped as requested." "WARNING"
     fi
