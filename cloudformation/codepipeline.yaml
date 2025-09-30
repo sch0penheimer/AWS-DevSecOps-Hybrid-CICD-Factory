@@ -216,7 +216,7 @@ Resources:
     Type: 'AWS::SSM::Parameter'
     Properties:
       Name: !Sub ${AWS::StackName}-Snyk-API-Key
-      Type: SecureString 
+      Type: String 
       Value: !Ref SnykAPIKey
 
   SSMAppURL:
@@ -230,17 +230,17 @@ Resources:
   CodeConnection:
     Type: AWS::CodeStarConnections::Connection
     Properties:
-      ConnectionName: !Sub ${AWS::StackName}-devsecops-platform-code-connection
+      ConnectionName: !Sub ${AWS::StackName}-conn
       ProviderType: !Ref GitProviderType
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- CloudWatch Log Group for pipeline logs -#
   PipelineCloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties: 
-      LogGroupName: !Sub ${AWS::StackName}-devsecops-pipeline-logs
+      LogGroupName: !Sub ${AWS::StackName}-pipeline-logs
       RetentionInDays: 7
 
   #- KMS Key for pipeline encryption -#
@@ -301,7 +301,7 @@ Resources:
           Resource: '*'
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- SNS Topics for notifications -#
   ManualApprovalTopic:
@@ -311,10 +311,10 @@ Resources:
       Subscription: 
       - Endpoint: !Ref PipelineManualApproverMail
         Protocol: "email"
-      TopicName: !Sub ${AWS::StackName}-devsecops-pipeline-manual-approval-topic
+      TopicName: !Sub ${AWS::StackName}-pipeline-manual-approval-topic
       Tags:
       - Key: pipeline-name
-        Value: !Sub ${AWS::StackName}-devsecops-pipeline
+        Value: !Sub ${AWS::StackName}-pipeline
 
   PipelineTopic:
     Type: AWS::SNS::Topic
@@ -323,10 +323,10 @@ Resources:
       Subscription: 
       - Endpoint: !Ref PipelineNotificationMail
         Protocol: "email"
-      TopicName: !Sub ${AWS::StackName}-devsecops-pipeline-change-topic
+      TopicName: !Sub ${AWS::StackName}-pipeline-change-topic
       Tags:
       - Key: pipeline-name
-        Value: !Sub ${AWS::StackName}-devsecops-pipeline
+        Value: !Sub ${AWS::StackName}-pipeline
 
   CloudTrailTopic:
     Type: AWS::SNS::Topic
@@ -338,7 +338,7 @@ Resources:
       TopicName: !Sub ${AWS::StackName}-cloudtrail-notifications-topic
       Tags:
       - Key: pipeline-name
-        Value: !Sub ${AWS::StackName}-devsecops-pipeline
+        Value: !Sub ${AWS::StackName}-pipeline
 
   #- Main Lambda Function (for Security Hub Import) -#
   LambdaSHImport:
@@ -359,11 +359,11 @@ Resources:
       Timeout: 10
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- CloudWatch Event (aka 'AWS EventBridge') Role for automatic CodePipeline execution -#
   CloudWatchEventRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -419,7 +419,7 @@ Resources:
     Properties: 
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   CloudTrailBucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
@@ -457,26 +457,17 @@ Resources:
             Bool:
               'aws:SecureTransport': false
 
-  Trail:
-    DependsOn: 
-      - CloudTrailBucketPolicy
-    Type: AWS::CloudTrail::Trail
-    Properties: 
-      S3BucketName: !Ref CloudTrailBucket
-      IncludeGlobalServiceEvents: true
-      IsLogging: true
-      IsMultiRegionTrail: true
-      EnableLogFileValidation: true
-      CloudWatchLogsLogGroupArn: !GetAtt TrailLogGroup.Arn
-      CloudWatchLogsRoleArn: !GetAtt TrailLogGroupRole.Arn
-
   TrailLogGroup:
     Type: 'AWS::Logs::LogGroup'
     Properties:
-      RetentionInDays: 20
+      LogGroupName: !Sub ${AWS::StackName}-cloudtrail-logs
+      RetentionInDays: 14
+      Tags:
+        - Key: pipeline-name
+          Value: !Sub ${AWS::StackName}-pipeline
 
   TrailLogGroupRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -487,15 +478,40 @@ Resources:
             Service: 'cloudtrail.amazonaws.com'
           Action: 'sts:AssumeRole'
       Policies:
-      - PolicyName: 'cloudtrail-policy'
+      - PolicyName: 'cloudtrail-logs-policy'
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
           - Effect: Allow
             Action:
+            - 'logs:CreateLogGroup'
             - 'logs:CreateLogStream'
             - 'logs:PutLogEvents'
-            Resource: !GetAtt 'TrailLogGroup.Arn'
+            - 'logs:DescribeLogStreams'
+            - 'logs:DescribeLogGroups'
+            Resource: 
+              - !GetAtt TrailLogGroup.Arn
+      Tags:
+        - Key: pipeline-name
+          Value: !Sub ${AWS::StackName}-pipeline
+
+  Trail:
+    DependsOn: 
+      - CloudTrailBucketPolicy
+      - TrailLogGroup
+      - TrailLogGroupRole
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      S3BucketName: !Ref CloudTrailBucket
+      IncludeGlobalServiceEvents: true
+      IsLogging: true
+      IsMultiRegionTrail: true
+      EnableLogFileValidation: true
+      CloudWatchLogsLogGroupArn: !GetAtt TrailLogGroup.Arn
+      CloudWatchLogsRoleArn: !GetAtt TrailLogGroupRole.Arn
+      Tags:
+        - Key: pipeline-name
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- CloudWatch Metric Filters (Start, Stop, Update, Delete) and Alarms -#
   PipelineStateChangeMetricFilter:
@@ -580,7 +596,7 @@ Resources:
   AppPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
-      Name: !Sub ${AWS::StackName}-devsecops-pipeline
+      Name: !Sub ${AWS::StackName}-pipeline
       RoleArn: !GetAtt PipelineServiceRole.Arn
       Stages:
         #- 1) Source Code Checkout Stage -#
@@ -711,7 +727,7 @@ Resources:
 
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   ##-- CodeBuild Projects --##
   #- 1. Secrets Analysis (Git-Secrets) Build Project -#
@@ -750,7 +766,7 @@ Resources:
       QueuedTimeoutInMinutes: 10
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- 2. Snyk SAST Build Project -#
   SnykSASTBuildProject:
@@ -791,7 +807,7 @@ Resources:
       QueuedTimeoutInMinutes: 10
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- 3. Clair SCA/SAST + Staging Build Project -#
   ClairSASTStagingBuildProject:
@@ -833,7 +849,7 @@ Resources:
       QueuedTimeoutInMinutes: 10
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- 4. OWASP DAST Build Project (Needs the Security Group to access the staging ECS Cluster
   # + VPC Id & Private Subnet Ids to run internally and resolve internal IPs / DNS names) -#
@@ -872,7 +888,7 @@ Resources:
       QueuedTimeoutInMinutes: 10
       Tags:
         - Key: pipeline-name
-          Value: !Sub ${AWS::StackName}-devsecops-pipeline
+          Value: !Sub ${AWS::StackName}-pipeline
 
   #- 5. Production Deployment. This is not really a build project as its handled by CodeDeploy and -#
   #-                            the associated CodeDeploy AppSpec file.                            -#
@@ -914,10 +930,6 @@ Resources:
                   - ecs:*
                 Resource: '*'
       Path: /
-      RoleName: !Join
-        - '-'
-        - - !Ref 'AWS::StackName'
-          - SecurityCodeAnalysisRole
 
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
@@ -931,13 +943,12 @@ Resources:
                 - codedeploy.amazonaws.com
             Action: 'sts:AssumeRole'
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForECS
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
       Path: /
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${AWS::StackName}-LambdaExecutionRole
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -961,7 +972,7 @@ Resources:
                 Resource: '*'
   
   PipelineServiceRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
