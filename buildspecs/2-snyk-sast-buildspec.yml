@@ -16,7 +16,7 @@ phases:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Install Phase begun."
       - echo "Installing Snyk:"
-      - npm install -g snyk
+      - npm install -g snyk --unsafe-perm
       - echo "Snyk version -> $(snyk --version)"
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installation Phase completed successfully."
 

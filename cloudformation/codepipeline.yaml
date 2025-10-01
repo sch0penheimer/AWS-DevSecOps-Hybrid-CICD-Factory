@@ -759,7 +759,7 @@ Resources:
         - Name: LAMBDA_FUNCTION_NAME
           Value: !Ref LambdaSHImport
         - Name: DOCKERFILE_NAME
-          Value: main-app-dockerfile.dockerfile
+          Value: Dockerfile
         PrivilegedMode: true
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
