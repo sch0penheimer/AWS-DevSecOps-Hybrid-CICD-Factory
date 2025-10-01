@@ -9,6 +9,7 @@
 #  Purpose: Automated packaging of Lambda function code for deployment.
 ################################################################################
 
+cd ..
 cd lambda-function
 zip -r ../terraform-manifests/storage/lambda.zip .
 cd ..
