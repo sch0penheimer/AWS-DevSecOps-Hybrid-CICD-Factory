@@ -62,13 +62,13 @@ phases:
       
       - echo "Evaluating Snyk SAST security scan results:"
       - |
-        if [ grep -E 'high|critical' payload.json ]; then
+        if [[ $(grep -E 'high|critical' payload.json) ]]; then
           echo "CRITICAL/HIGH vulnerabilities found."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
           echo "- Scan results uploaded to Security Hub. Build FAILING due to security violations."
           echo "- Image NOT pushed to ECR due to security issues."
           exit 1
-        elif [ grep -E 'medium|low' payload.json ]; then
+        elif [[ $(grep -E 'medium|low' payload.json) ]]; then
           echo "Medium/Low vulnerabilities found but within acceptable threshold"
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
           echo "- Pushing image to ECR:"

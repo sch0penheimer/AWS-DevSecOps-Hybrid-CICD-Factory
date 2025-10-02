@@ -60,11 +60,11 @@ phases:
         \"source_commitid\": env.CODEBUILD_RESOLVED_SOURCE_VERSION, \
         \"report\": . }" ecr_scan_result.json > payload.json
       - |
-        if grep -E 'HIGH|CRITICAL' ecr_scan_result.json; then
+        if [[ $(grep -E 'HIGH|CRITICAL' ecr_scan_result.json) ]]; then
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json ecr_scan_result.json && echo "LAMBDA_SUCCEEDED" || echo "LAMBDA_FAILED"
           echo "There are critical or high vulnerabilities.. failing the build"
           exit 1
-        elif grep -E 'MEDIUM' ecr_scan_result.json; then
+        elif [[ $(grep -E 'MEDIUM' ecr_scan_result.json) ]]; then
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json ecr_scan_result.json && echo "LAMBDA_SUCCEEDED" || echo "LAMBDA_FAILED"
         fi
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to ECS:"
