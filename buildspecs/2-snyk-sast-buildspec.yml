@@ -27,6 +27,9 @@ phases:
       - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 --storage-driver=overlay&
       - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
       - echo "Docker daemon ready."
+      - echo "Authenticating with Docker Hub to avoid pull limits:"
+      - echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password $DOCKERHUB_PASSWORD
+      - echo "Docker Hub authentication successful."
       - echo "Logging into ECR:"
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."

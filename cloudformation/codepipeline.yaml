@@ -117,6 +117,14 @@ Parameters:
     Description: Manual Approval / DevOps Administrator Email Address
     Type: String
 
+  DockerHubUsername:
+    Description: Docker Hub Username (for pull limits)
+    Type: String
+  
+  DockerHubPassword:
+    Description: Docker Hub Password (for pull limits)
+    Type: String
+    NoEcho: true
 
 ##-- Metadata Section for CloudFormation UI Grouping--##
 Metadata:
@@ -154,6 +162,11 @@ Metadata:
       - LambdaS3Bucket
       - LambdaS3Key
       - LambdaHandler
+
+    - Label: Docker Hub Authentication (For Pull Limits) Related Parameters
+      Parameters:
+      - DockerHubUsername
+      - DockerHubPassword
 
     - Label:
         default: Contact & Approval Notifications Related Parameters
@@ -210,6 +223,12 @@ Metadata:
     PipelineManualApproverMail:
         default: Email for Approval Notifications
 
+    DockerHubUsername:
+        default: Docker Hub Username (for pull limits)
+
+    DockerHubPassword:
+        default: Docker Hub Password (for pull limits)
+
 ##-- Resources Section --##
 Resources:
   #- System Manager (SSM) Parameters for Secure Secrets/Config Storage -#
@@ -226,6 +245,13 @@ Resources:
       Name: !Sub ${AWS::StackName}-App-URL
       Type: String
       Value: !Ref AppURLForDAST
+  
+  SSMDockerHubPassword:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Name: !Sub ${AWS::StackName}-DockerHub-Password
+      Type: String
+      Value: !Ref DockerHubPassword
 
   #- CodeConnections Git Repo Connection -#
   CodeConnection:
@@ -760,6 +786,11 @@ Resources:
           Value: !Ref LambdaSHImport
         - Name: DOCKERFILE_NAME
           Value: Dockerfile
+        - Name: DOCKERHUB_USERNAME
+          Value: !Ref DockerHubUsername
+        - Name: DOCKERHUB_PASSWORD
+          Type: PARAMETER_STORE
+          Value: !Ref SSMDockerHubPassword
         PrivilegedMode: true
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
