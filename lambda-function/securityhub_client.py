@@ -12,12 +12,15 @@
 ##-- Imports & Logging Setup --##
 import boto3
 from logger_config import create_component_logger
-from config_manager import config
+from config_manager import ConfigManager
 
 logger = create_component_logger("securityhub-client")
 
 ##-- Security Hub Client Initialization --##
 securityhub = boto3.client('securityhub')
+
+##-- Config Initialization --##
+config = ConfigManager()
 
 ##-- Finding Import Function --##
 def import_security_finding(finding_data):

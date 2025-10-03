@@ -15,9 +15,12 @@ import boto3
 from datetime import datetime, timezone
 from logger_config import create_component_logger
 from securityhub_client import import_security_finding
-from config_manager import config
+from config_manager import ConfigManager
 
 logger = create_component_logger("report-processor")
+
+##-- Config Initialization --##
+config = ConfigManager()
 
 def extract_findings(event, report_type):
     findings = []
