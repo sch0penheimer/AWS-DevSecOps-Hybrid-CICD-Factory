@@ -54,6 +54,7 @@ def import_security_finding(finding_data):
     }
     
     response = securityhub.batch_import_findings(Findings=[finding])
+    logger.info(f"SecurityHub response: {response}")
     if response['FailedCount'] > 0:
         raise Exception(f"Failed to import finding: {response}")
     logger.info(f"Imported finding {finding_data['id']}")
