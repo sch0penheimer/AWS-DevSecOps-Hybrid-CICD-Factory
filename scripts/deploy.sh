@@ -273,7 +273,7 @@ load_environment() {
     local required_vars=(
         "GIT_PROVIDER_TYPE" "FULL_GIT_REPOSITORY_ID" "BRANCH_NAME"
         "SNYK_API_KEY" "PIPELINE_NOTIFICATION_MAIL" "PIPELINE_MANUAL_APPROVER_MAIL"
-        "AWS_REGION"
+        "AWS_REGION" "DOCKERHUB_USERNAME" "DOCKERHUB_PASSWORD"
     )
     
     log_message "Validating required environment variables:" "INFO"
@@ -564,6 +564,8 @@ deploy_cloudformation_stack() {
         "SnykAPIKey=$SNYK_API_KEY"
         "PipelineNotificationMail=$PIPELINE_NOTIFICATION_MAIL"
         "PipelineManualApproverMail=$PIPELINE_MANUAL_APPROVER_MAIL"
+        "DockerHubUsername=$DOCKERHUB_USERNAME"
+        "DockerHubPassword=$DOCKERHUB_PASSWORD"
     )
     
     #- Deploy CloudFormation stack -#
