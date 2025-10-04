@@ -442,6 +442,7 @@ Resources:
   #- CloudTrail S3 Bucket & Resources -#
   CloudTrailBucket: 
     Type: AWS::S3::Bucket
+    BucketName: !Sub ${AWS::StackName}-cloudtrail-bucket
     Properties: 
       Tags:
         - Key: pipeline-name
