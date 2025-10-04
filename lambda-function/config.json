@@ -1,15 +1,38 @@
 {
   "severity_mappings": {
     "custom_scale": {
-      "CRITICAL": 5,
-      "BLOCKER": 5,
-      "HIGH": 4,
-      "MAJOR": 3,
-      "MEDIUM": 2,
-      "LOW": 1,
+      "CRITICAL": 90,
+      "BLOCKER": 90,
+      "HIGH": 70,
+      "MAJOR": 50,
+      "MEDIUM": 40,
+      "LOW": 10,
       "INFORMATIONAL": 1,
       "NEGLIGIBLE": 1,
       "UNKNOWN": 1
+    }
+  },
+  "tool_mappings": {
+    "ECR": {
+      "CRITICAL": "CRITICAL",
+      "HIGH": "HIGH", 
+      "MEDIUM": "MEDIUM",
+      "LOW": "LOW",
+      "INFORMATIONAL": "INFORMATIONAL",
+      "NEGLIGIBLE": "NEGLIGIBLE",
+      "UNKNOWN": "UNKNOWN"
+    },
+    "SNYK": {
+      "critical": "CRITICAL",
+      "high": "HIGH",
+      "medium": "MEDIUM", 
+      "low": "LOW"
+    },
+    "OWASP-Zap": {
+      "High": "HIGH",
+      "Medium": "MEDIUM",
+      "Low": "LOW",
+      "Informational": "INFORMATIONAL"
     }
   },
   "finding_types": {
@@ -18,15 +41,14 @@
     "OWASP-Zap": "OWASP ZAP dynamic security scan"
   },
   "finding_titles": {
-    "ECR": "AWS ECR StaticCode Analysis",
-    "SNYK": "Snyk StaticCode Analysis",
-    "OWASP-Zap": "OWASP ZAP DynamicCode Analysis"
+    "ECR": "AWS ECR's Clair StaticCode Analysis",
+    "SNYK": "Snyk Static Application Security Testing Analysis",
+    "OWASP-Zap": "OWASP ZAP Dynamic Application Security Testing Analysis"
   },
   "remediation_urls": {
     "cloudformation": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html",
     "owasp": "https://owasp.org/www-project-top-ten/",
     "snyk": "https://docs.snyk.io/getting-started"
   },
-  "excluded_severities": ["NEGLIGIBLE", "UNKNOWN", "INFORMATIONAL"],
   "default_report_url": "https://aws.amazon.com"
 }

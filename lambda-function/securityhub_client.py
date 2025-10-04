@@ -32,7 +32,7 @@ def import_security_finding(finding_data):
         "ProductArn": config.get_product_arn(finding_data['region'], finding_data['account_id']),
         "GeneratorId": finding_data['generator_id'],
         "AwsAccountId": finding_data['account_id'],
-        "Types": [f"Software and Configuration Checks/AWS Security Best Practices/{finding_data['type']}"],
+        "Types": [f"DevSecOps/Vulnerabilities/{finding_data['type']}"],
         "CreatedAt": finding_data['created_at'],
         "UpdatedAt": finding_data['created_at'],
         "Severity": {"Normalized": finding_data['normalized_severity']},

@@ -26,7 +26,7 @@ def extract_findings(event, report_type):
     findings = []
     
     if report_type == 'ECR':
-        for i, vuln in enumerate(event['report']['imageScanFindings']['findings']):
+        for i, vuln in enumerate(event['reportContent']['imageScanFindings']['findings']):
             findings.append({
                 'id': f"{i}-{vuln['name']}",
                 'severity': vuln['severity'],
@@ -35,7 +35,7 @@ def extract_findings(event, report_type):
     
     elif report_type == 'SNYK':
         seen_titles = set()
-        for i, vuln in enumerate(event['report']['vulnerabilities']):
+        for i, vuln in enumerate(event['reportContent']['vulnerabilities']):
             if vuln['title'] not in seen_titles:
                 seen_titles.add(vuln['title'])
                 findings.append({
@@ -45,7 +45,7 @@ def extract_findings(event, report_type):
                 })
     
     elif report_type == 'OWASP-Zap':
-        for i, alert in enumerate(event['report']['site'][0]['alerts']):
+        for i, alert in enumerate(event['reportContent']['site'][0]['alerts']):
             severity = alert['riskdesc'][:3]
             findings.append({
                 'id': f"{i}-{alert['alert']}",
@@ -59,7 +59,7 @@ def upload_to_s3(event, build_id, created_at):
     try:
         s3 = boto3.client('s3')
         bucket = config.get_s3_artifact_bucket_name()
-        key = f"reports/{event['reportType']}/{build_id}-{created_at}.json"
+        key = f"reports/{event['pipelineReportType']}/{build_id}-{created_at}.json"
         s3.put_object(Bucket=bucket, Body=json.dumps(event), Key=key, ServerSideEncryption='aws:kms')
         return f"https://s3.console.aws.amazon.com/s3/object/{bucket}/{key}?region={os.environ['AWS_REGION']}"
     except Exception as e:
@@ -67,18 +67,18 @@ def upload_to_s3(event, build_id, created_at):
         return config.get_remediation_url('default')
 
 def process_security_scan_message(event):
-    if event['messageType'] != 'CodeScanReport':
-        raise ValueError(f"Unsupported message type: {event.get('messageType')}")
+    if event['eventType'] != 'DevSecOps_Report':
+        raise ValueError(f"Unsupported message type: {event.get('eventType')}")
     
     #- Extract event data -#
     account_id = boto3.client('sts').get_caller_identity()['Account']
     region = os.environ['AWS_REGION']
-    report_type = event['reportType']
-    build_id = event['build_id']
+    report_type = event['pipelineReportType']
+    build_id = event['buildId']
     created_at = datetime.now(timezone.utc).isoformat()
     
     #- Upload report to S3 -#
-    report_url = upload_to_s3(event, build_id, event['createdAt'])
+    report_url = upload_to_s3(event, build_id, event['generatedAt'])
     
     #- Extract and process findings -#
     findings = extract_findings(event, report_type)
@@ -87,27 +87,26 @@ def process_security_scan_message(event):
     remediation_map = {'ECR': 'cloudformation', 'SNYK': 'snyk', 'OWASP-Zap': 'owasp'}
     
     for finding in findings:
-        if not config.should_exclude_severity(finding['severity']):
-            normalized_severity = config.get_severity_mapping(finding['severity'])
-            if normalized_severity > 20:
-                vulnerability_level = "NOTLOW"
-            
-            finding_data = {
-                'id': f"{finding['id']}-{build_id}",
-                'account_id': account_id,
-                'region': region,
-                'created_at': created_at,
-                'generator_id': f"{report_type.lower()}-{event['source_repository']}-{event['source_branch']}",
-                'normalized_severity': normalized_severity,
-                'type': config.get_finding_type(report_type),
-                'title': config.get_finding_title(report_type),
-                'description': finding['description'],
-                'remediation_url': config.get_remediation_url(remediation_map.get(report_type, 'default')),
-                'report_url': report_url,
-                'build_id': build_id
-            }
-            
-            import_security_finding(finding_data)
+        normalized_severity = config.get_severity_mapping(finding['severity'])
+        if normalized_severity > 20:
+            vulnerability_level = "NOTLOW"
+        
+        finding_data = {
+            'id': f"{finding['id']}-{build_id}",
+            'account_id': account_id,
+            'region': region,
+            'created_at': created_at,
+            'generator_id': f"{report_type.lower()}-{event['sourceRepository']}-{event['sourceBranch']}",
+            'normalized_severity': normalized_severity,
+            'type': config.get_finding_type(report_type),
+            'title': config.get_finding_title(report_type),
+            'description': finding['description'],
+            'remediation_url': config.get_remediation_url(remediation_map.get(report_type, 'default')),
+            'report_url': report_url,
+            'build_id': build_id
+        }
+        
+        import_security_finding(finding_data)
     
     logger.info(f"Processed {len(findings)} findings, vulnerability level: {vulnerability_level}")
     return vulnerability_level
