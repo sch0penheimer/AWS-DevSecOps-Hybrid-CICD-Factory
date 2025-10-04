@@ -114,12 +114,14 @@ phases:
       - echo "Informational alerts -> $info_alerts"
       - echo "Preparing Security Hub payload:"
       - |
-        jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"OWASP-ZAP\", \
-        \"createdAt\": \"$(date +'%Y-%m-%dT%H:%M:%S.%3NZ')\", \"source_repository\": env.CODEBUILD_SOURCE_REPO_URL, \
-        \"source_branch\": env.CODEBUILD_SOURCE_VERSION, \
-        \"build_id\": env.CODEBUILD_BUILD_ID, \
-        \"source_commitid\": env.CODEBUILD_RESOLVED_SOURCE_VERSION, \
-        \"report\": . }" zap-scan-results.json > payload.json
+        jq "{ \"eventType\": \"DevSecOps_Report\", \
+        \"pipelineReportType\": \"OWASP-ZAP\", \
+        \"generatedAt\": $(date +\"%Y-%m-%dT%H:%M:%S.%3NZ\"), \
+        \"buildId\": env.CODEBUILD_BUILD_ID, \
+        \"sourceRepository\": env.CODEBUILD_SOURCE_REPO_URL, \
+        \"sourceBranch\": env.CODEBUILD_SOURCE_VERSION, \
+        \"reportContent\": . }" zap-scan-results.json > payload.json
+      
       - echo "Evaluating OWASP ZAP DAST security scan results:"
       - |
         if [ "$high_alerts" != "0" ] && [ "$high_alerts" != "null" ]; then

@@ -53,12 +53,13 @@ phases:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Post-build phase started"
       - echo "Wrapping up..."
       - |
-        jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"SNYK\", \
-        \"createdAt\": $(date +\"%Y-%m-%dT%H:%M:%S.%3NZ\"), \"source_repository\": env.CODEBUILD_SOURCE_REPO_URL, \
-        \"source_branch\": env.CODEBUILD_SOURCE_VERSION, \
-        \"build_id\": env.CODEBUILD_BUILD_ID, \
-        \"source_commitid\": env.CODEBUILD_RESOLVED_SOURCE_VERSION, \
-        \"report\": . }" snyk-results.json > payload.json
+        jq "{ \"eventType\": \"DevSecOps_Report\", \
+        \"pipelineReportType\": \"SNYK\", \
+        \"generatedAt\": $(date +\"%Y-%m-%dT%H:%M:%S.%3NZ\"), \
+        \"buildId\": env.CODEBUILD_BUILD_ID, \
+        \"sourceRepository\": env.CODEBUILD_SOURCE_REPO_URL, \
+        \"sourceBranch\": env.CODEBUILD_SOURCE_VERSION, \
+        \"reportContent\": . }" snyk-results.json > payload.json
       
       - echo "Evaluating Snyk SAST security scan results:"
       - |

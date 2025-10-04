@@ -53,12 +53,14 @@ phases:
   post_build:
     commands:
       - |
-        jq "{ \"messageType\": \"CodeScanReport\", \"reportType\": \"ECR\", \
-        \"createdAt\": \"$(date +'%Y-%m-%dT%H:%M:%S.%3NZ')\", \"source_repository\": env.CODEBUILD_SOURCE_REPO_URL, \
-        \"source_branch\": env.CODEBUILD_SOURCE_VERSION, \
-        \"build_id\": env.CODEBUILD_BUILD_ID, \
-        \"source_commitid\": env.CODEBUILD_RESOLVED_SOURCE_VERSION, \
-        \"report\": . }" ecr_scan_result.json > payload.json
+        jq "{ \"eventType\": \"DevSecOps_Report\", \
+        \"pipelineReportType\": \"ECR\", \
+        \"generatedAt\": $(date +\"%Y-%m-%dT%H:%M:%S.%3NZ\"), \
+        \"buildId\": env.CODEBUILD_BUILD_ID, \
+        \"sourceRepository\": env.CODEBUILD_SOURCE_REPO_URL, \
+        \"sourceBranch\": env.CODEBUILD_SOURCE_VERSION, \
+        \"reportContent\": . }" ecr_scan_result.json > payload.json
+      
       - |
         if [ $(grep -E 'HIGH|CRITICAL' ecr_scan_result.json) ]; then
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json ecr_scan_result.json && echo "LAMBDA_SUCCEEDED" || echo "LAMBDA_FAILED"
