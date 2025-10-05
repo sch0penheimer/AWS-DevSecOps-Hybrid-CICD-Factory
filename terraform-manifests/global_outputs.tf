@@ -151,14 +151,14 @@ output "production_container_name" {
   value = module.compute.production_container_name
 }
 
-output "staging_task_definition_arn" {
-  description = "ARN of the staging task definition"
-  value       = module.compute.staging_task_definition_arn
+output "staging_task_definition_name" {
+  description = "Name of the staging task definition (Used by CloudFormation)"
+  value       = module.compute.staging_task_definition_name
 }
 
-output "production_task_definition_arn" {
-  description = "ARN of the production task definition (Used by CloudFormation CodeBuild's AppSpec)"
-  value       = module.compute.production_task_definition_arn
+output "production_task_definition_name" {
+  description = "ARN of the production task definition (Used by CloudFormation)"
+  value       = module.compute.production_task_definition_name
 }
 
 output "production_target_group_name" {

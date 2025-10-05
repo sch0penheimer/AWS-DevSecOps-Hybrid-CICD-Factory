@@ -39,6 +39,18 @@ resource "aws_iam_role_policy_attachment" "ecs_instance_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
+##-- SSM permissions for Session Manager access --##
+resource "aws_iam_role_policy_attachment" "ecs_instance_ssm_policy" {
+  role       = aws_iam_role.ecs_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+##-- Add CloudWatch Logs permissions for better logging --##
+resource "aws_iam_role_policy_attachment" "ecs_instance_cloudwatch_policy" {
+  role       = aws_iam_role.ecs_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+}
+
 #-- A role instance profile, since the IAM role concern EC2s --#
 resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "${var.project_name}-ecs-instance-profile"
@@ -470,6 +482,8 @@ resource "aws_ecr_repository" "app_repo" {
   tags = {
     Name        = "${var.project_name}-app-repo"
   }
+
+  force_delete = true
 }
 
 #-- ECR Lifecycle Policy --##

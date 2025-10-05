@@ -92,14 +92,14 @@ output "production_container_name" {
   value = "${var.project_name}-app-prod-container"
 }
 
-output "staging_task_definition_arn" {
-  description = "ARN of the staging task definition"
-  value       = aws_ecs_task_definition.staging.arn
+output "staging_task_definition_name" {
+  description = "Name of the staging task definition (Used by CloudFormation)"
+  value       = aws_ecs_task_definition.staging.family
 }
 
-output "production_task_definition_arn" {
-  description = "ARN of the production task definition (Used by CloudFormation CodeBuild's AppSpec)"
-  value       = aws_ecs_task_definition.prod.arn
+output "production_task_definition_name" {
+  description = "Name of the production task definition (Used by CloudFormation)"
+  value       = aws_ecs_task_definition.prod.family
 }
 
 output "production_target_group_name" {
