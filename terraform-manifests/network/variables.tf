@@ -28,3 +28,9 @@ variable "private_subnet_cidrs" {
   type        = list(string)
   default     = ["10.0.3.0/24", "10.0.4.0/24"]
 }
+
+variable "nat_instance_type" {
+  description = "EC2 instance type for the NAT instances"
+  type    = string
+  default = "t2.micro"
+}

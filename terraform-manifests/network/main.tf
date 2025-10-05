@@ -17,6 +17,66 @@ data "http" "my_ip" {
   url = "https://checkip.amazonaws.com/"
 }
 
+
+#-- NAT Instance (Free Tier Alternative to NAT Gateway) --#
+data "aws_ami" "nat_instance" {
+  most_recent = true
+  owners      = ["amazon"]
+  
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+  
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+#-- NAT Instance --#
+resource "aws_instance" "nat_instance" {
+  ami                    = data.aws_ami.nat_instance.id
+  instance_type          = var.nat_instance_type
+  subnet_id              = aws_subnet.public[0].id
+  vpc_security_group_ids = [aws_security_group.nat_instance.id]
+  
+  #- Disable source/destination check (required for NAT functionality) -#
+  source_dest_check = false
+  
+  #- Assign public IP -#
+  associate_public_ip_address = true
+
+  tags = {
+    Name = "${var.project_name}-nat-instance"
+    Type = "NAT"
+  }
+
+  #- User data to configure NAT functionality -#
+  user_data = <<-EOF
+    #!/bin/bash
+    sudo yum install iptables-services -y
+    sudo systemctl enable iptables
+    sudo systemctl start iptables
+
+    #- Enable IP forwarding -#
+    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.d/custom-ip-forwarding.conf
+    sudo sysctl -p /etc/sysctl.d/custom-ip-forwarding.conf
+
+    PUBLIC_IFACE=$(ip route | awk '/default/ {print $5}')
+
+    sudo /sbin/iptables -t nat -A POSTROUTING -o $PUBLIC_IFACE -j MASQUERADE
+    sudo /sbin/iptables -F FORWARD
+    sudo service iptables save
+  EOF
+
+  depends_on = [
+    aws_vpc.main,
+    aws_subnet.public[0],
+    aws_security_group.nat_instance
+  ]
+}
+
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -90,11 +150,22 @@ resource "aws_route_table" "private" {
         cidr_block = "${var.vpc_cidr}"
         gateway_id = local
       }
-    Also, it's the ONLY route in a private subnet's route table.
   **/
 
   tags = {
     Name        = "${var.project_name}-private-route-table"
+  }
+
+  depends_on = [aws_instance.nat_instance]
+}
+
+resource "null_resource" "private_nat_route" {
+  depends_on = [aws_instance.nat_instance, aws_route_table.private]
+
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ec2 create-route --route-table-id ${aws_route_table.private.id} --destination-cidr-block 0.0.0.0/0 --instance-id ${aws_instance.nat_instance.id}
+    EOT
   }
 }
 
@@ -272,6 +343,60 @@ resource "aws_security_group" "staging_ecs" {
 
   tags = {
     Name        = "${var.project_name}-staging-ecs-security-group"
+  }
+}
+
+##-- Security Group for NAT Instance --##
+resource "aws_security_group" "nat_instance" {
+  name        = "${var.project_name}-nat-instance-sg"
+  description = "Security group for NAT instance"
+  vpc_id      = aws_vpc.main.id
+
+  #- Ingress only from private subnets -#
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [for subnet in aws_subnet.private : subnet.cidr_block]
+    description = "HTTP from private subnets"
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [for subnet in aws_subnet.private : subnet.cidr_block]
+    description = "HTTPS from private subnets (Main ECS Agent Communication Port)"
+  }
+
+  ingress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [for subnet in aws_subnet.private : subnet.cidr_block]
+    description = "DNS from private subnets"
+  }
+
+  #- DNS TCP (some queries) -#
+  ingress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [for subnet in aws_subnet.private : subnet.cidr_block]
+    description = "DNS TCP from private subnets"
+  }
+
+  #- Egress to the whole Internet -#
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound traffic"
+  }
+
+  tags = {
+    Name = "${var.project_name}-nat-instance-sg"
   }
 }
 
