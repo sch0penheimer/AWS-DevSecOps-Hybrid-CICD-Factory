@@ -38,6 +38,14 @@ Parameters:
     Description: ECS Staging Service Name
     Type: String
 
+  StagingECSTaskDefinition:
+    Description: ECS Task Definition for Staging
+    Type: String
+
+  ProdECSTaskDefinition:
+    Description: ECS Task Definition for Production
+    Type: String
+
   ProdECSCluster:
     Description: ECS Cluster for Production
     Type: String
@@ -141,6 +149,8 @@ Metadata:
       - ProdECSCluster
       - StagingECSService
       - ProdECSService
+      - StagingECSTaskDefinition
+      - ProdECSTaskDefinition
       - ProdTargetGroup
       - VpcId
       - PrivateSubnetIds
@@ -207,6 +217,21 @@ Metadata:
 
     ProdECSCluster:
         default: Production ECS Cluster Name
+
+    StagingECSService:
+        default: Staging ECS Service Name
+    
+    ProdECSService:
+        default: Production ECS Service Name
+
+    StagingECSTaskDefinition:
+        default: ECS Task Definition for Staging
+    
+    ProdECSTaskDefinition:
+        default: ECS Task Definition for Production
+    
+    ProdTargetGroup:
+        default: Production Target Group Name
 
     VpcId:
         default: VPC ID for internal staging access
@@ -442,6 +467,7 @@ Resources:
   #- CloudTrail S3 Bucket & Resources -#
   CloudTrailBucket: 
     Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
     Properties: 
       BucketName: !Sub ${AWS::StackName}-cloudtrail-bucket
       Tags:
@@ -832,6 +858,8 @@ Resources:
           Value: !Ref StagingECSCluster
         - Name: ECS_SERVICE_NAME
           Value: !Ref StagingECSService
+        - Name: ECS_TASK_DEFINITION
+          Value: !Ref StagingECSTaskDefinition
         - Name: LAMBDA_FUNCTION_NAME
           Value: !Ref LambdaSHImport
         PrivilegedMode: true
