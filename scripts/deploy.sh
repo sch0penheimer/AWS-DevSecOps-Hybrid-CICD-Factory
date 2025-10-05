@@ -600,8 +600,9 @@ print_next_steps() {
     echo
     log_message "Next steps:" "INFO"
     echo "   1. Complete the CodeConnections connection in AWS Console"
-    echo "   2. Verify SNS email subscriptions in your inbox"
-    echo "   3. Monitor pipeline execution in AWS CodePipeline console"
+    echo "   2. Enable AWS Security Hub CSPM (Services + Policies) in your account"
+    echo "   3. Verify SNS email subscriptions in your inbox"
+    echo "   4. Monitor pipeline execution in AWS CodePipeline console"
     echo
 }
 
