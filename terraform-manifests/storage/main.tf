@@ -13,6 +13,8 @@ resource "aws_s3_bucket" "artifact_store" {
   tags = {
     pipeline-name = "${var.project_name}-pipeline"
   }
+
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_policy" "artifact_store_policy" {
@@ -60,6 +62,8 @@ resource "aws_s3_bucket" "lambda_bucket" {
   tags = {
     pipeline-name = "${var.project_name}-pipeline"
   }
+
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_policy" "lambda_bucket_policy" {
