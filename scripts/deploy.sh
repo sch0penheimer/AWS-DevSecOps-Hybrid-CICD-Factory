@@ -32,7 +32,7 @@ NOCOLOR='\033[0m'
 
 ##-- CLI options --##
 SKIP_INFRASTRUCTURE=false
-DESTROY_INFRASTRUCTURE=false
+ROLLBACK_DEPLOYMENT=false
 SHOW_HELP=false
 
 ##-- CLI arguments parsing --##
@@ -42,8 +42,8 @@ while [[ $# -gt 0 ]]; do
             SKIP_INFRASTRUCTURE=true
             shift
             ;;
-        --destroy-infrastructure)
-            DESTROY_INFRASTRUCTURE=true
+        --rollback-deployment )
+            ROLLBACK_DEPLOYMENT=true
             shift
             ;;
         --help|-h)
@@ -65,13 +65,13 @@ show_help() {
     echo
     echo -e "${CYAN}OPTIONS:${NOCOLOR}"
     echo "    --skip-infrastructure           Skip Terraform infrastructure deployment (use existing infrastructure)"
-    echo "    --destroy-infrastructure        Destroy existing Terraform infrastructure and exit"
+    echo "    --rollback-deployment           Rollback existing Terraform infrastructure & CloudFormation stack and exit"
     echo "    --help, -h                      Show this help message"
     echo
     echo -e "${CYAN}EXAMPLES:${NOCOLOR}"
     echo -e "    $0                                    ${BLUE}#- Full deployment with new infrastructure -#${NOCOLOR}"
     echo -e "    $0 --skip-infrastructure              ${BLUE}#- Deploy only CI/CD pipeline to existing infrastructure -#${NOCOLOR}"
-    echo -e "    $0 --destroy-infrastructure           ${BLUE}#- Destroy infrastructure and exit -#${NOCOLOR}"
+    echo -e "    $0 --rollback-deployment              ${BLUE}#- Rollback deployment and exit -#${NOCOLOR}"
     echo
     echo -e "${CYAN}PREREQUISITES:${NOCOLOR}"
     echo "    - Bash v4.0+"
@@ -369,7 +369,7 @@ destroy_infrastructure() {
     cd "$TERRAFORM_DIR"
     
     echo
-    log_message "WARNING: This will destroy ALL Terraform-managed infrastructure" "ERROR"
+    log_message "WARNING: This will destroy everything deployed : Terraform-managed infrastructure + CloudFormation Stack" "ERROR"
     read -p "Are you absolutely sure? Type 'DESTROY' to continue: " confirmation
     
     if [[ "$confirmation" != "DESTROY" ]]; then
@@ -485,6 +485,10 @@ deploy_cloudformation_stack() {
         log_message "  - Production ECS Service: $prod_ecs_service" "DEBUG"
         local prod_target_group=$(jq -r '.production_target_group_name.value // empty' "$terraform_outputs_file")
         log_message "  - Production Target Group: $prod_target_group" "DEBUG"
+        local staging_ecs_task_definition=$(jq -r '.staging_task_definition_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Staging ECS Task Definition: $staging_ecs_task_definition" "DEBUG"
+        local prod_ecs_task_definition=$(jq -r '.production_task_definition_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Production ECS Task Definition: $prod_ecs_task_definition" "DEBUG"
         local ecr_registry_name=$(jq -r '.ecr_repository_name.value // empty' "$terraform_outputs_file")
         log_message "  - ECR Repository Name: $ecr_registry_name" "DEBUG"
         local artifact_bucket=$(jq -r '.artifact_bucket_name.value // empty' "$terraform_outputs_file")
@@ -509,6 +513,8 @@ deploy_cloudformation_stack() {
             "ProdECSCluster=$prod_ecs_cluster"
             "ProdECSService=$prod_ecs_service"
             "ProdTargetGroup=$prod_target_group"
+            "StagingECSTaskDefinition=$staging_ecs_task_definition"
+            "ProdECSTaskDefinition=$prod_ecs_task_definition"
             "EcrRegistryName=$ecr_registry_name"
             "PipelineArtifactS3Bucket=$artifact_bucket"
             "LambdaS3Bucket=$lambda_bucket"
@@ -528,6 +534,8 @@ deploy_cloudformation_stack() {
         read -p "Production ECS Cluster Name: " prod_ecs_cluster
         read -p "Production ECS Service Name: " prod_ecs_service
         read -p "Production Target Group Name: " prod_target_group
+        read -p "Staging ECS Task Definition Name: " staging_ecs_task_definition
+        read -p "Production ECS Task Definition Name: " prod_ecs_task_definition
         read -p "ECR Repository Name: " ecr_registry_name
         read -p "Pipeline Artifact S3 Bucket Name: " artifact_bucket
         read -p "Lambda S3 Bucket Name: " lambda_bucket
@@ -544,6 +552,8 @@ deploy_cloudformation_stack() {
             "ProdECSCluster=$prod_ecs_cluster"
             "ProdECSService=$prod_ecs_service"
             "ProdTargetGroup=$prod_target_group"
+            "StagingECSTaskDefinition=$staging_ecs_task_definition"
+            "ProdECSTaskDefinition=$prod_ecs_task_definition"
             "EcrRegistryName=$ecr_registry_name"
             "PipelineArtifactS3Bucket=$artifact_bucket"
             "LambdaS3Bucket=$lambda_bucket"
@@ -594,6 +604,24 @@ deploy_cloudformation_stack() {
     fi
 }
 
+destroy_cloudformation_stack() {
+    local stack_name="devsecops-cloudformation"
+    
+    log_message "Destroying CloudFormation stack: $stack_name" "WARNING"
+    
+    if aws cloudformation delete-stack --stack-name "$stack_name" --region "$AWS_REGION"; then
+        log_message "CloudFormation stack deletion initiated" "INFO"
+        log_message "Waiting for stack to be deleted..." "INFO"
+        
+        aws cloudformation wait stack-delete-complete --stack-name "$stack_name" --region "$AWS_REGION"
+        
+        log_message "CloudFormation stack deleted successfully" "SUCCESS"
+    else
+        log_message "Failed to initiate CloudFormation stack deletion!" "ERROR"
+        exit 1
+    fi
+}
+
 print_next_steps() {
     echo
     log_message "AWS DevSecOps Hybrid CI/CD Platform deployment deployed successfully" "SUCCESS"
@@ -629,10 +657,13 @@ main() {
     
     configure_aws_credentials
 
-    #- Handle destroy operation -#
-    if [[ "$DESTROY_INFRASTRUCTURE" == true ]]; then
+    #- Handle rollback operation -#
+    if [[ "$ROLLBACK_DEPLOYMENT" == true ]]; then
         destroy_infrastructure
         log_message "Infrastructure destruction completed." "SUCCESS"
+        destroy_cloudformation_stack
+        log_message "CloudFormation stack destruction completed." "SUCCESS"
+        log_message "Deployment Rollbacked Successfully !" "SUCCESS"
         exit 0
     fi
     
