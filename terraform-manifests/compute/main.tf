@@ -226,14 +226,28 @@ resource "aws_ecs_task_definition" "staging" {
   family                   = "${var.project_name}-app-staging-task-def"
   network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
-  cpu                      = "512"
-  memory                   = "1024"
-  container_definitions    = jsonencode([
+  cpu                      = "256"    
+  memory                   = "384" 
+  
+  container_definitions = jsonencode([
     {
       name      = "${var.project_name}-app-staging-container"
-      image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
+      image     = "nginx:alpine"
       essential = true
-      portMappings = [{ containerPort = 80, hostPort = 80 }]
+      memory    = 256 
+      memoryReservation = 128
+      portMappings = [{ 
+        containerPort = 80, 
+        hostPort = 0
+      }]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/aws/ecs/${var.project_name}/staging"
+          "awslogs-region"        = "us-east-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     }
   ])
 }
@@ -242,25 +256,50 @@ resource "aws_ecs_task_definition" "prod" {
   family                   = "${var.project_name}-app-prod-task-def"
   network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
-  cpu                      = "512"
-  memory                   = "1024"
+  cpu                      = "256"
+  memory                   = "512"
+  
   container_definitions    = jsonencode([
     {
       name      = "${var.project_name}-app-prod-container"
-      image     = "${aws_ecr_repository.app_repo.repository_url}:latest"
+      image     = "nginx:alpine"
       essential = true
-      portMappings = [{ containerPort = 80, hostPort = 80 }]
-    },                                
+      memory    = 256
+      memoryReservation = 128
+      portMappings = [{ 
+        containerPort = 80, 
+        hostPort = 0
+      }]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/aws/ecs/${var.project_name}/production"
+          "awslogs-region"        = "us-east-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    },
     {
       name      = "falco"
-      image     = "falco/falco:latest"
+      image     = "falcosecurity/falco:latest"
       essential = false
+      memory    = 128
+      memoryReservation = 64
       privileged = true
       mountPoints = [
         { sourceVolume = "docker-socket", containerPath = "/host/var/run/docker.sock" }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/aws/ecs/${var.project_name}/production"
+          "awslogs-region"        = "us-east-1"
+          "awslogs-stream-prefix" = "falco"
+        }
+      }
     }
   ])
+  
   volume {
     name = "docker-socket"
     host_path = "/var/run/docker.sock"
