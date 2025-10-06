@@ -38,8 +38,28 @@ phases:
   pre_build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build phase started."
-      - echo "Starting OWASP ZAP daemon:"
+      - echo "Verifying staging environment readiness:"
       - echo "Application URL for DAST -> $APPLICATION_URL"
+      - |
+        echo "Testing staging application accessibility..."
+        timeout=300
+        counter=0
+        while [ $counter -lt $timeout ]; do
+          if curl -f --connect-timeout 10 "$APPLICATION_URL" > /dev/null 2>&1; then
+            echo "Staging application is accessible"
+            break
+          fi
+          echo "Waiting for staging app to be ready... ($counter/$timeout seconds)"
+          sleep 15
+          counter=$((counter + 15))
+        done
+        
+        if [ $counter -ge $timeout ]; then
+          echo "Staging application not accessible - DAST cannot proceed"
+          exit 1
+        fi
+
+      - echo "Starting OWASP ZAP daemon:"
       - export DISPLAY=:99
       - Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
       - sleep 2
@@ -59,6 +79,10 @@ phases:
             echo "Attempt $i: ZAP not ready, waiting..."
             sleep 10
           fi
+          if [ $i -eq 10 ]; then
+            echo "ZAP failed to start"
+            exit 1
+          fi
         done
       - curl "http://localhost:8080/JSON/core/view/version/" | jq .
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."
@@ -67,36 +91,54 @@ phases:
   build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build phase started."
+
       - echo "Starting OWASP ZAP Spider Scan:"
       - spider_scanid=$(curl "http://localhost:8080/JSON/spider/action/scan/?url=$APPLICATION_URL&recurse=true" | jq -r '.scan')
       - echo "Spider Scan ID -> $spider_scanid"
       - echo "Waiting for spider scan to complete:"
       - |
         stat=0;
-        while [ "$stat" != "100" ]; do
+        timeout=600
+        counter=0
+        while [ "$stat" != "100" ] && [ $counter -lt $timeout ]; do
           stat=$(curl "http://localhost:8080/JSON/spider/view/status/?scanId=$spider_scanid" | jq -r '.status');
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Spider scan status: $stat%"
           if [ "$stat" = "100" ]; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Spider scan completed successfully."
             break
           fi
-          sleep 5;
+          sleep 10;
+          counter=$((counter + 10))
         done
+        
+        if [ $counter -ge $timeout ]; then
+          echo "Spider scan timed out"
+          exit 1
+        fi
+
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting OWASP ZAP Active Scan:"
       - active_scanid=$(curl "http://localhost:8080/JSON/ascan/action/scan/?url=$APPLICATION_URL&recurse=true&inScopeOnly=false" | jq -r '.scan')
       - echo "Active Scan ID -> $active_scanid"
       - echo "Waiting for active scan to complete:"
       - |
         stat=0;
-        while [ "$stat" != "100" ]; do
+        timeout=900
+        counter=0
+        while [ "$stat" != "100" ] && [ $counter -lt $timeout ]; do
           stat=$(curl "http://localhost:8080/JSON/ascan/view/status/?scanId=$active_scanid" | jq -r '.status');
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Active scan status: $stat%"
           if [ "$stat" = "100" ]; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Active scan completed successfully."
             break
           fi
-          sleep 10;
+          sleep 15;
+          counter=$((counter + 15))
         done
+        
+        if [ $counter -ge $timeout ]; then
+          echo "Active scan timed out - proceeding with partial results"
+        fi
+
       - echo "Generating scan report:"
       - curl "http://localhost:8080/OTHER/core/other/jsonreport/" | jq . > zap-scan-results.json
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build Phase completed successfully."
@@ -104,16 +146,19 @@ phases:
   post_build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Post-build phase started."
+
       - echo "Analyzing scan results:"
       - high_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.High // 0')
       - medium_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Medium // 0')
       - low_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Low // 0')
       - info_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Informational // 0')
+      
       - echo "=== OWASP ZAP DAST Scan Results ==="
       - echo "High severity alerts -> $high_alerts"
       - echo "Medium severity alerts -> $medium_alerts"
       - echo "Low severity alerts -> $low_alerts"
       - echo "Informational alerts -> $info_alerts"
+      
       - echo "Preparing Security Hub payload:"
       - |
         jq "{ \"eventType\": \"DevSecOps_Report\", \
@@ -139,6 +184,21 @@ phases:
           echo "- No high or medium vulnerabilities found in DAST scan."
           echo "- DAST scan completed successfully."
         fi
+        
+      ##-- Cleanup --##
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning up staging environment..."
+      - |
+        echo "Scaling down staging Auto Scaling Group to 0 instances..."
+        
+        #- Scale down the ASG -#
+        aws autoscaling set-desired-capacity \
+          --auto-scaling-group-name $ASG_NAME \
+          --desired-capacity 0 \
+          --region $AWS_DEFAULT_REGION
+        
+        echo "Staging ASG scaled down to 0 instances"
+        echo "Staging environment cleanup initiated"
+
       - echo "Shutting down ZAP daemon:"
       - curl "http://localhost:8080/JSON/core/action/shutdown/" || true
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] OWASP ZAP DAST analysis completed."

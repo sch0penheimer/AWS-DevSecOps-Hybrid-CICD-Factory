@@ -42,6 +42,10 @@ Parameters:
     Description: ECS Task Definition for Staging
     Type: String
 
+  StagingASGName:
+    Description: Auto Scaling Group Name for Staging (for instance, to fetch the instances' IPs for DAST testing)
+    Type: String
+
   ProdECSTaskDefinition:
     Description: ECS Task Definition for Production
     Type: String
@@ -52,10 +56,6 @@ Parameters:
 
   ProdECSService:
     Description: ECS Production Service Name
-    Type: String
-
-  ProdTargetGroup:
-    Description: Production Target Group Name
     Type: String
 
   EcrRegistryName:
@@ -151,7 +151,7 @@ Metadata:
       - ProdECSService
       - StagingECSTaskDefinition
       - ProdECSTaskDefinition
-      - ProdTargetGroup
+      - StagingASGName       
       - VpcId
       - PrivateSubnetIds
       - CodeBuildSecurityGroupId
@@ -229,10 +229,10 @@ Metadata:
     
     ProdECSTaskDefinition:
         default: ECS Task Definition for Production
-    
-    ProdTargetGroup:
-        default: Production Target Group Name
 
+    StagingASGName:
+        default: Auto Scaling Group Name for Staging
+        
     VpcId:
         default: VPC ID for internal staging access
       
@@ -854,6 +854,8 @@ Resources:
           Value: latest
         - Name: AWS_DEFAULT_REGION
           Value: !Ref AWS::Region
+        - Name: ASG_NAME
+          Value: !Ref StagingASGName
         - Name: ECS_CLUSTER_NAME
           Value: !Ref StagingECSCluster
         - Name: ECS_SERVICE_NAME
@@ -895,6 +897,8 @@ Resources:
         - Name: APPLICATION_URL
           Type: PARAMETER_STORE
           Value: !Ref SSMAppURL
+        - Name: ASG_NAME
+          Value: !Ref StagingASGName
         - Name: LAMBDA_FUNCTION_NAME
           Value: !Ref LambdaSHImport
       ServiceRole: !Ref CodeBuildServiceRole
@@ -911,7 +915,7 @@ Resources:
           GroupName: !Ref PipelineCloudWatchLogGroup
           Status: ENABLED
           StreamName: DASTAnalysis
-      QueuedTimeoutInMinutes: 10
+      QueuedTimeoutInMinutes: 20
       Tags:
         - Key: pipeline-name
           Value: !Sub ${AWS::StackName}-pipeline
@@ -933,10 +937,10 @@ Resources:
           Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRegistryName}
         - Name: ECS_CLUSTER_NAME
           Value: !Ref ProdECSCluster
+        - Name: ECS_TASK_DEFINITION
+          Value: !Ref ProdECSTaskDefinition
         - Name: ECS_SERVICE_NAME
           Value: !Ref ProdECSService
-        - Name: TARGET_GROUP_ARN
-          Value: !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/${ProdTargetGroup}/*
         - Name: AWS_DEFAULT_REGION
           Value: !Ref AWS::Region
         PrivilegedMode: true

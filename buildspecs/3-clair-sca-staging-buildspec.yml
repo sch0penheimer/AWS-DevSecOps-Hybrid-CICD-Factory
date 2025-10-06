@@ -28,11 +28,67 @@ phases:
   pre_build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build phase started."
+      
+      #- Start Docker daemon -#
       - echo "Starting Docker Daemon:"
       - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 --storage-driver=overlay&
       - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Docker daemon ready."
+      
+      #- ECR Login -#
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."
+
+      #- Scale up staging ASG from 0 to 1 -#
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Scaling up staging environment..."
+      - aws autoscaling set-desired-capacity --auto-scaling-group-name $StagingASGName --desired-capacity 1 --honor-cooldown
+      - echo "Waiting for Auto Scaling Group to launch instance..."
+
+      #- Wait for ASG to have 1 running instance -#
+      - |
+        timeout=600
+        counter=0
+        while [ $counter -lt $timeout ]; do
+          RUNNING_INSTANCES=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG_NAME --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService`]' --output json | jq length)
+          echo "Running instances in ASG: $RUNNING_INSTANCES"
+          if [ "$RUNNING_INSTANCES" -ge 1 ]; then
+            echo "ASG has running instance"
+            break
+          fi
+          echo "Waiting for instance to be InService... ($counter/$timeout seconds)"
+          sleep 15
+          counter=$((counter + 15))
+        done
+        
+        if [ $counter -ge $timeout ]; then
+          echo "Timeout waiting for ASG instance"
+          exit 1
+        fi
+
+      #- Wait for ECS container instance registration -#
+      - echo "Waiting for ECS container instance to register..."
+      - |
+        timeout=300
+        counter=0
+        while [ $counter -lt $timeout ]; do
+          CONTAINER_INSTANCES=$(aws ecs list-container-instances --cluster $ECS_CLUSTER_NAME --query 'length(containerInstanceArns)')
+          echo "Container instances registered: $CONTAINER_INSTANCES"
+          if [ "$CONTAINER_INSTANCES" -ge 1 ]; then
+            echo "ECS container instance registered"
+            break
+          fi
+          echo "Waiting for container instance registration... ($counter/$timeout seconds)"
+          sleep 10
+          counter=$((counter + 10))
+        done
+        
+        if [ $counter -ge $timeout ]; then
+          echo "Timeout waiting for ECS container instance registration"
+          aws ecs describe-clusters --clusters $ECS_CLUSTER_NAME
+          aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG_NAME --query 'AutoScalingGroups[0].Instances'
+          exit 1
+        fi
+      
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."
 
   build:
@@ -50,6 +106,27 @@ phases:
           sleep 5
         done
       - aws ecr describe-image-scan-findings --repository-name $ECR_REPO_NAME --image-id imageTag=$TAG > ecr_scan_result.json
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] ECR vulnerability scan completed"
+
+      #- Update task definition with new image -#
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Updating task definition with new image..."
+      - |
+        #- Get current task definition -#
+        aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION --query 'taskDefinition' > current_task_def.json
+
+        #- Update the image URI in the task definition -#
+        jq --arg IMAGE_URI "$ECR_REPO_URI:$TAG" \
+           'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy) | 
+            .containerDefinitions[0].image = $IMAGE_URI' \
+           current_task_def.json > new_task_def.json
+        
+        #- Register new task definition -#
+        NEW_TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://new_task_def.json --query 'taskDefinition.taskDefinitionArn' --output text)
+        echo "New task definition registered: $NEW_TASK_DEF_ARN"
+        
+        #- Store for later use -#
+        echo $NEW_TASK_DEF_ARN > new_task_def_arn.txt
+      
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build Phase completed successfully."
 
   post_build:
@@ -71,26 +148,60 @@ phases:
         elif [ $(grep -E 'MEDIUM' ecr_scan_result.json) ]; then
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json ecr_scan_result.json && echo "LAMBDA_SUCCEEDED" || echo "LAMBDA_FAILED"
         fi
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to ECS:"
-      - aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to staging ECS Environment:"
+      - NEW_TASK_DEF_ARN=$(cat new_task_def_arn.txt)
       
-      ##-- Wait for deployment to stabilize --##
-      - echo "Waiting for service "$ECS_SERVICE_NAME" to reach steady state:"
-      - aws ecs wait services-stable --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME
-      
-      ##-- Verify service is running and healthy -##
+      #- Check if service exists, create if not -#
       - |
-        RUNNING_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].runningCount')
-        if [ "$RUNNING_COUNT" -eq 0 ]; then
-          echo "Service failed to start. Checking events..."
+        if aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0]' --output text | grep -q "None"; then
+          echo "Creating ECS service..."
+          aws ecs create-service \
+            --cluster $ECS_CLUSTER_NAME \
+            --service-name $ECS_SERVICE_NAME \
+            --task-definition $NEW_TASK_DEF_ARN \
+            --desired-count 1 \
+            --launch-type EC2 \
+            --enable-execute-command
+        else
+          echo "Updating existing ECS service..."
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER_NAME \
+            --service $ECS_SERVICE_NAME \
+            --task-definition $NEW_TASK_DEF_ARN \
+            --force-new-deployment
+        fi
+      
+      #- Wait for deployment to stabilize -#
+      - echo "Waiting for service to reach steady state..."
+      - |
+        timeout=600 
+        aws ecs wait services-stable --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --cli-read-timeout $timeout --cli-connect-timeout 60
+        
+        if [ $? -eq 0 ]; then
+          echo "Service deployment completed successfully"
+        else
+          echo "Service deployment failed or timed out"
           aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].events[0:5]'
           exit 1
         fi
       
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Service deployed successfully"
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating imagedefinitions.json for CodeDeploy ECS deployment:"
+      #- Verify service health -#
+      - |
+        RUNNING_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].runningCount')
+        DESIRED_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].desiredCount')
+        
+        echo "Service Status: $RUNNING_COUNT/$DESIRED_COUNT tasks running"
+        
+        if [ "$RUNNING_COUNT" -eq 0 ]; then
+          echo "No tasks running - deployment failed"
+          aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].events[0:5]'
+          exit 1
+        fi
+      #- Generate artifacts -#
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating deployment artifacts..."
       - printf '[{"name":"%s","imageUri":"%s"}]' $ECS_SERVICE_NAME $ECR_REPO_URI:$TAG > imagedefinitions.json
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S")] Post-build phase completed successfully."
+      - echo $NEW_TASK_DEF_ARN > staging_task_definition_arn.txt
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Post-build phase completed successfully."
 
 artifacts:
   type: zip
@@ -98,3 +209,5 @@ artifacts:
     - imagedefinitions.json
     - ecr_scan_result.json
     - payload.json
+    - staging_task_definition_arn.txt
+    - new_task_def_arn.txt

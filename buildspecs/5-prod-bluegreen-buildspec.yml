@@ -32,7 +32,6 @@ phases:
       - echo "ECS Cluster -> $ECS_CLUSTER_NAME"
       - echo "ECS Service -> $ECS_SERVICE_NAME"
       - echo "ECR Repository -> $ECR_REPO_URI"
-      - echo "Target Group -> $TARGET_GROUP_ARN"
       - echo "Region -> $AWS_DEFAULT_REGION"
       - echo "\n"
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Logging in to Amazon ECR :"
