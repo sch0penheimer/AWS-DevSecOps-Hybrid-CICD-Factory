@@ -28,9 +28,9 @@ phases:
       - pip3 install --upgrade awscli
       - echo "Downloading and installing OWASP ZAP:"
       - cd /tmp
-      - wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_Linux.tar.gz
-      - tar -xzf ZAP_2_14_0_Linux.tar.gz
-      - mv ZAP_2.14.0 /opt/zap
+      - wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.16.1/ZAP_2.16.1_Linux.tar.gz
+      - tar -xzf ZAP_2.16.1_Linux.tar.gz
+      - mv ZAP_2.16.1 /opt/zap
       - chmod +x /opt/zap/zap.sh
       - echo "ZAP installation completed."
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installation Phase completed successfully."
