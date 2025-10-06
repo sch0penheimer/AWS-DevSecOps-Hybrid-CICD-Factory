@@ -639,6 +639,7 @@ Resources:
                 ConnectionArn: !Ref CodeConnection
                 FullRepositoryId: !Ref FullGitRepositoryId
                 BranchName: !Ref BranchName
+                DetectChanges: true
               RunOrder: 1
 
         #- 2) Secret Analysis (using Git-Secrets) Stage -#
