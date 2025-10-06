@@ -41,7 +41,7 @@ phases:
 
       #- Scale up staging ASG from 0 to 1 -#
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Scaling up staging environment..."
-      - aws autoscaling set-desired-capacity --auto-scaling-group-name $StagingASGName --desired-capacity 1 --honor-cooldown
+      - aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 1 --honor-cooldown
       - echo "Waiting for Auto Scaling Group to launch instance..."
 
       #- Wait for ASG to have 1 running instance -#
