@@ -161,7 +161,7 @@ output "production_task_definition_name" {
   value       = module.compute.production_task_definition_name
 }
 
-output "production_target_group_name" {
-  description = "Name of the production ALB's target group (Used by CloudFormation)"
-  value       = module.compute.production_target_group_name
+output "staging_auto_scaling_group_name" {
+  description = "Name of the stgaing ASG (Used by CloudFormation)"
+  value       = module.compute.staging_auto_scaling_group_name
 }

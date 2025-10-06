@@ -483,8 +483,8 @@ deploy_cloudformation_stack() {
         log_message "  - Production ECS Cluster: $prod_ecs_cluster" "DEBUG"
         local prod_ecs_service=$(jq -r '.production_service_name.value // empty' "$terraform_outputs_file")
         log_message "  - Production ECS Service: $prod_ecs_service" "DEBUG"
-        local prod_target_group=$(jq -r '.production_target_group_name.value // empty' "$terraform_outputs_file")
-        log_message "  - Production Target Group: $prod_target_group" "DEBUG"
+        local staging_auto_scaling_group=$(jq -r '.staging_auto_scaling_group_name.value // empty' "$terraform_outputs_file")
+        log_message "  - Staging Auto Scaling Group: $staging_auto_scaling_group" "DEBUG"
         local staging_ecs_task_definition=$(jq -r '.staging_task_definition_name.value // empty' "$terraform_outputs_file")
         log_message "  - Staging ECS Task Definition: $staging_ecs_task_definition" "DEBUG"
         local prod_ecs_task_definition=$(jq -r '.production_task_definition_name.value // empty' "$terraform_outputs_file")
@@ -515,6 +515,7 @@ deploy_cloudformation_stack() {
             "ProdTargetGroup=$prod_target_group"
             "StagingECSTaskDefinition=$staging_ecs_task_definition"
             "ProdECSTaskDefinition=$prod_ecs_task_definition"
+            "StagingASGName=$staging_auto_scaling_group"
             "EcrRegistryName=$ecr_registry_name"
             "PipelineArtifactS3Bucket=$artifact_bucket"
             "LambdaS3Bucket=$lambda_bucket"
@@ -533,7 +534,7 @@ deploy_cloudformation_stack() {
         read -p "Staging ECS Service Name: " staging_ecs_service
         read -p "Production ECS Cluster Name: " prod_ecs_cluster
         read -p "Production ECS Service Name: " prod_ecs_service
-        read -p "Production Target Group Name: " prod_target_group
+        read -p "Staging Auto Scaling Group Name: " staging_auto_scaling_group
         read -p "Staging ECS Task Definition Name: " staging_ecs_task_definition
         read -p "Production ECS Task Definition Name: " prod_ecs_task_definition
         read -p "ECR Repository Name: " ecr_registry_name
@@ -554,6 +555,7 @@ deploy_cloudformation_stack() {
             "ProdTargetGroup=$prod_target_group"
             "StagingECSTaskDefinition=$staging_ecs_task_definition"
             "ProdECSTaskDefinition=$prod_ecs_task_definition"
+            "StagingASGName=$staging_auto_scaling_group"
             "EcrRegistryName=$ecr_registry_name"
             "PipelineArtifactS3Bucket=$artifact_bucket"
             "LambdaS3Bucket=$lambda_bucket"

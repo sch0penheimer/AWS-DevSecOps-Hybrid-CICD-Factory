@@ -102,7 +102,7 @@ output "production_task_definition_name" {
   value       = aws_ecs_task_definition.prod.family
 }
 
-output "production_target_group_name" {
-  description = "Name of the production ALB's target group (Used by CloudFormation)"
-  value       = aws_lb_target_group.production.name
+output "staging_auto_scaling_group_name" {
+  description = "Name of the stgaing ASG (Used by CloudFormation)"
+  value       = aws_autoscaling_group.staging.name
 }
