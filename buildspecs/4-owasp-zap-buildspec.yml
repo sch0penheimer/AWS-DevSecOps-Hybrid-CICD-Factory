@@ -32,6 +32,11 @@ phases:
       - tar -xzf ZAP_2.16.1_Linux.tar.gz
       - mv ZAP_2.16.1 /opt/zap
       - chmod +x /opt/zap/zap.sh
+      - chmod +x /opt/zap/zap-baseline.py
+      - chmod +x /opt/zap/zap-full-scan.py
+      - mkdir -p /home/zap/.ZAP
+      - chown -R $(whoami) /opt/zap
+      - chown -R $(whoami) /home/zap
       - echo "ZAP installation completed."
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installation Phase completed successfully."
   
