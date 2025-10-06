@@ -995,6 +995,7 @@ Resources:
                   - ecr:*
                   - ecs:*
                   - ec2:*
+                  - autoscaling:*
                 Resource: '*'
       Path: /
       ManagedPolicyArns:
