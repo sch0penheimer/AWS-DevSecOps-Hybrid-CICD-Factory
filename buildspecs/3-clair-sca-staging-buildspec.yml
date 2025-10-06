@@ -11,6 +11,8 @@
 ################################################################################
 
 version: 0.2
+env:
+  shell: bash
 phases:
   install:
     commands:
@@ -71,9 +73,24 @@ phases:
         fi
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to ECS:"
       - aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment
+      
+      ##-- Wait for deployment to stabilize --##
+      - echo "Waiting for service "$ECS_SERVICE_NAME" to reach steady state:"
+      - aws ecs wait services-stable --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME
+      
+      ##-- Verify service is running and healthy -##
+      - |
+        RUNNING_COUNT=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].runningCount')
+        if [ "$RUNNING_COUNT" -eq 0 ]; then
+          echo "Service failed to start. Checking events..."
+          aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --query 'services[0].events[0:5]'
+          exit 1
+        fi
+      
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Service deployed successfully"
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating imagedefinitions.json for CodeDeploy ECS deployment:"
       - printf '[{"name":"%s","imageUri":"%s"}]' $ECS_SERVICE_NAME $ECR_REPO_URI:$TAG > imagedefinitions.json
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Post-build phase completed successfully."
+      - echo "[$(date '+%Y-%m-%d %H:%M:%S")] Post-build phase completed successfully."
 
 artifacts:
   type: zip
