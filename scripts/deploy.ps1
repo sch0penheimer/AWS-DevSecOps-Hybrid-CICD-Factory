@@ -77,12 +77,12 @@ function Write-LogMessage {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     
     switch ($Type) {
-        "ERROR"   { Write-Host "[$timestamp: ERROR] $Message" -ForegroundColor $Colors.RED }
-        "WARNING" { Write-Host "[$timestamp: WARNING] $Message" -ForegroundColor $Colors.YELLOW }
-        "SUCCESS" { Write-Host "[$timestamp: SUCCESS] $Message" -ForegroundColor $Colors.GREEN }
-        "INFO"    { Write-Host "[$timestamp: INFO] $Message" -ForegroundColor $Colors.CYAN }
-        "DEBUG"   { Write-Host "[$timestamp: DEBUG] $Message" -ForegroundColor $Colors.PURPLE }
-        default   { Write-Host "[$timestamp: LOG] $Message" -ForegroundColor $Colors.BLUE }
+        "ERROR"   { Write-Host "[$timestamp ERROR] $Message" -ForegroundColor $Colors.RED }
+        "WARNING" { Write-Host "[$timestamp WARNING] $Message" -ForegroundColor $Colors.YELLOW }
+        "SUCCESS" { Write-Host "[$timestamp SUCCESS] $Message" -ForegroundColor $Colors.GREEN }
+        "INFO"    { Write-Host "[$timestamp INFO] $Message" -ForegroundColor $Colors.CYAN }
+        "DEBUG"   { Write-Host "[$timestamp DEBUG] $Message" -ForegroundColor $Colors.PURPLE }
+        default   { Write-Host "[$timestamp LOG] $Message" -ForegroundColor $Colors.BLUE }
     }
 }
 
@@ -475,37 +475,37 @@ function Deploy-CloudFormationStack {
         try {
             $terraform_outputs = Get-Content $TerraformOutputsFile | ConvertFrom-Json
             
-            $staging_ecs_cluster = if ($terraform_outputs.staging_cluster_name.value) { $terraform_outputs.staging_cluster_name.value } else { "" }
-            Write-LogMessage "  - Staging ECS Cluster: $staging_ecs_cluster" "DEBUG"
-            $staging_ecs_service = if ($terraform_outputs.staging_service_name.value) { $terraform_outputs.staging_service_name.value } else { "" }
-            Write-LogMessage "  - Staging ECS Service: $staging_ecs_service" "DEBUG"
-            $prod_ecs_cluster = if ($terraform_outputs.production_cluster_name.value) { $terraform_outputs.production_cluster_name.value } else { "" }
-            Write-LogMessage "  - Production ECS Cluster: $prod_ecs_cluster" "DEBUG"
-            $prod_ecs_service = if ($terraform_outputs.production_service_name.value) { $terraform_outputs.production_service_name.value } else { "" }
-            Write-LogMessage "  - Production ECS Service: $prod_ecs_service" "DEBUG"
-            $staging_auto_scaling_group = if ($terraform_outputs.staging_auto_scaling_group_name.value) { $terraform_outputs.staging_auto_scaling_group_name.value } else { "" }
-            Write-LogMessage "  - Staging Auto Scaling Group: $staging_auto_scaling_group" "DEBUG"
-            $staging_ecs_task_definition = if ($terraform_outputs.staging_task_definition_name.value) { $terraform_outputs.staging_task_definition_name.value } else { "" }
-            Write-LogMessage "  - Staging ECS Task Definition: $staging_ecs_task_definition" "DEBUG"
-            $prod_ecs_task_definition = if ($terraform_outputs.production_task_definition_name.value) { $terraform_outputs.production_task_definition_name.value } else { "" }
-            Write-LogMessage "  - Production ECS Task Definition: $prod_ecs_task_definition" "DEBUG"
-            $ecr_registry_name = if ($terraform_outputs.ecr_repository_name.value) { $terraform_outputs.ecr_repository_name.value } else { "" }
-            Write-LogMessage "  - ECR Repository Name: $ecr_registry_name" "DEBUG"
-            $artifact_bucket = if ($terraform_outputs.artifact_bucket_name.value) { $terraform_outputs.artifact_bucket_name.value } else { "" }
-            Write-LogMessage "  - Artifact S3 Bucket: $artifact_bucket" "DEBUG"
-            $lambda_bucket = if ($terraform_outputs.lambda_bucket_name.value) { $terraform_outputs.lambda_bucket_name.value } else { "" }
-            Write-LogMessage "  - Lambda S3 Bucket: $lambda_bucket" "DEBUG"
-            $lambda_s3_key = if ($terraform_outputs.lambda_package_key.value) { $terraform_outputs.lambda_package_key.value } else { "" }
-            Write-LogMessage "  - Lambda S3 Key: $lambda_s3_key" "DEBUG"
+            $staging_ecs_cluster = if ($terraform_outputs.staging_cluster_name.value) { $terraform_outputs.staging_cluster_name.value } else { " }
+            Write-LogMessage "Staging ECS Cluster: $staging_ecs_cluster" "DEBUG"
+            $staging_ecs_service = if ($terraform_outputs.staging_service_name.value) { $terraform_outputs.staging_service_name.value } else { " }
+            Write-LogMessage "Staging ECS Service: $staging_ecs_service" "DEBUG"
+            $prod_ecs_cluster = if ($terraform_outputs.production_cluster_name.value) { $terraform_outputs.production_cluster_name.value } else { " }
+            Write-LogMessage "Production ECS Cluster: $prod_ecs_cluster" "DEBUG"
+            $prod_ecs_service = if ($terraform_outputs.production_service_name.value) { $terraform_outputs.production_service_name.value } else { " }
+            Write-LogMessage "Production ECS Service: $prod_ecs_service" "DEBUG"
+            $staging_auto_scaling_group = if ($terraform_outputs.staging_auto_scaling_group_name.value) { $terraform_outputs.staging_auto_scaling_group_name.value } else { " }
+            Write-LogMessage "Staging Auto Scaling Group: $staging_auto_scaling_group" "DEBUG"
+            $staging_ecs_task_definition = if ($terraform_outputs.staging_task_definition_name.value) { $terraform_outputs.staging_task_definition_name.value } else { " }
+            Write-LogMessage "Staging ECS Task Definition: $staging_ecs_task_definition" "DEBUG"
+            $prod_ecs_task_definition = if ($terraform_outputs.production_task_definition_name.value) { $terraform_outputs.production_task_definition_name.value } else { " }
+            Write-LogMessage "Production ECS Task Definition: $prod_ecs_task_definition" "DEBUG"
+            $ecr_registry_name = if ($terraform_outputs.ecr_repository_name.value) { $terraform_outputs.ecr_repository_name.value } else { " }
+            Write-LogMessage "ECR Repository Name: $ecr_registry_name" "DEBUG"
+            $artifact_bucket = if ($terraform_outputs.artifact_bucket_name.value) { $terraform_outputs.artifact_bucket_name.value } else { " }
+            Write-LogMessage "Artifact S3 Bucket: $artifact_bucket" "DEBUG"
+            $lambda_bucket = if ($terraform_outputs.lambda_bucket_name.value) { $terraform_outputs.lambda_bucket_name.value } else { " }
+            Write-LogMessage "Lambda S3 Bucket: $lambda_bucket" "DEBUG"
+            $lambda_s3_key = if ($terraform_outputs.lambda_package_key.value) { $terraform_outputs.lambda_package_key.value } else { " }
+            Write-LogMessage "Lambda S3 Key: $lambda_s3_key" "DEBUG"
             $lambda_handler = "lambda_handler.lambda_handler"
-            $vpc_id = if ($terraform_outputs.vpc_id.value) { $terraform_outputs.vpc_id.value } else { "" }
-            Write-LogMessage "  - VPC ID: $vpc_id" "DEBUG"
-            $private_subnets = if ($terraform_outputs.private_subnet_ids.value) { $terraform_outputs.private_subnet_ids.value -join "," } else { "" }
-            Write-LogMessage "  - Private Subnet IDs: $private_subnets" "DEBUG"
-            $codebuild_sg = if ($terraform_outputs.codebuild_security_group_id.value) { $terraform_outputs.codebuild_security_group_id.value } else { "" }
-            Write-LogMessage "  - CodeBuild Security Group ID: $codebuild_sg" "DEBUG"
-            $app_url_for_dast = if ($terraform_outputs.staging_alb_dns_name.value) { $terraform_outputs.staging_alb_dns_name.value } else { "" }
-            Write-LogMessage "  - App URL for DAST: $app_url_for_dast" "DEBUG"
+            $vpc_id = if ($terraform_outputs.vpc_id.value) { $terraform_outputs.vpc_id.value } else { " }
+            Write-LogMessage "VPC ID: $vpc_id" "DEBUG"
+            $private_subnets = if ($terraform_outputs.private_subnet_ids.value) { $terraform_outputs.private_subnet_ids.value -join "," } else { " }
+            Write-LogMessage "Private Subnet IDs: $private_subnets" "DEBUG"
+            $codebuild_sg = if ($terraform_outputs.codebuild_security_group_id.value) { $terraform_outputs.codebuild_security_group_id.value } else { " }
+            Write-LogMessage "CodeBuild Security Group ID: $codebuild_sg" "DEBUG"
+            $app_url_for_dast = if ($terraform_outputs.staging_alb_dns_name.value) { $terraform_outputs.staging_alb_dns_name.value } else { " }
+            Write-LogMessage "App URL for DAST: $app_url_for_dast" "DEBUG"
 
             $parameters += @(
                 "StagingECSCluster=$staging_ecs_cluster",
@@ -532,7 +532,7 @@ function Deploy-CloudFormationStack {
     } else {
         Write-LogMessage "Provide your existing infrastructure details:" "WARNING"
         Write-Host ""
-        $staging_ecs_cluster = Read-Host "Staging ECS Cluster Name"
+            $staging_ecs_cluster = Read-Host "Staging ECS Cluster Name"
         $staging_ecs_service = Read-Host "Staging ECS Service Name"
         $prod_ecs_cluster = Read-Host "Production ECS Cluster Name"
         $prod_ecs_service = Read-Host "Production ECS Service Name"
@@ -639,12 +639,12 @@ function Show-NextSteps {
     Write-Host "   4. Verify SNS email subscriptions in your inbox"
     Write-Host "   5. Monitor pipeline execution in AWS CodePipeline console"
     Write-Host ""
-}
+    }
 
-function Main {
+unction Main {
     Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Blue
     Write-Host "║                    AWS DevSecOps Hybrid CI/CD Platform                       ║" -ForegroundColor Blue
-    Write-Host "║                         Deployment Script (PowerShell) v2.0                  ║" -ForegroundColor Blue
+    Write-Host "║                    Deployment Script (PowerShell) v2.0                       ║" -ForegroundColor Blue
     Write-Host "║                                                                              ║" -ForegroundColor Blue
     Write-Host "║                  Author: Haitam Bidiouane (@sch0penheimer)                   ║" -ForegroundColor Blue
     Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Blue
@@ -678,9 +678,9 @@ function Main {
     New-LambdaPackage
     
     ##- II. Deploy platform infrastructure (or skip)
-    $terraform_outputs_file = ""
+    $terraform_outputs_file = "
     if (-not $SkipInfrastructure) {
-        Write-LogMessage "Proceeding with platform's Terraform infrastructure deployment:" "INFO"
+        Write-LogMessage "Proceeding with Terraform platform infrastructure deployment:" "INFO"
         
         Deploy-Infrastructure
         
@@ -700,7 +700,7 @@ function Main {
 
 ##- Trap errors and cleanup --##
 trap {
-    Write-LogMessage "Script interrupted or failed: $($_.Exception.Message)" "ERROR"
+    Write-Host "Error: $($_.Exception.Message)"
     exit 1
 }
 
