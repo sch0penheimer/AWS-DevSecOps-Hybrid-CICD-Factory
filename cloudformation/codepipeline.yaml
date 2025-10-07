@@ -728,7 +728,6 @@ Resources:
             - Name: Production-BlueGreen-Deployment-Action
               InputArtifacts:
                 - Name: SourceCodeArtifactOutput
-                - Name: ClairSASTArtifacts
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -946,6 +945,11 @@ Resources:
           Value: !Ref AWS::Region
         PrivilegedMode: true
       ServiceRole: !Ref CodeBuildServiceRole
+      VpcConfig:
+        VpcId: !Ref VpcId
+        Subnets: !Ref PrivateSubnetIds 
+        SecurityGroupIds: 
+          - !Ref CodeBuildSecurityGroupId
       Source:
         Type: CODEPIPELINE
         BuildSpec: buildspecs/5-prod-bluegreen-buildspec.yml
@@ -954,7 +958,7 @@ Resources:
           GroupName: !Ref PipelineCloudWatchLogGroup
           Status: ENABLED
           StreamName: ProductionDeployment
-      QueuedTimeoutInMinutes: 15
+      QueuedTimeoutInMinutes: 30
       Tags:
         - Key: pipeline-name
           Value: !Sub ${AWS::StackName}-pipeline
