@@ -51,26 +51,40 @@ phases:
         CURRENT_TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_DEFINITION --query 'taskDefinition')
         
         #- Extract image URI -#
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Extracting new image URI from imagedefinitions.json :"
-        NEW_IMAGE_URI=$(cat imagedefinitions.json | jq -r '.[0].imageUri')
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Constructing new image URI with latest tag :"
+        NEW_IMAGE_URI="${ECR_REPO_URI}:latest"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] New image URI: $NEW_IMAGE_URI"
         
         #- Validate image exists in ECR -#
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Validating new image exists in ECR :"
-        IMAGE_TAG=$(echo $NEW_IMAGE_URI | cut -d':' -f2)
-        REPO_NAME=$(echo $NEW_IMAGE_URI | cut -d'/' -f2 | cut -d':' -f1)
-        aws ecr describe-images --repository-name $REPO_NAME --image-ids imageTag=$IMAGE_TAG > /dev/null 2>&1
+        REPO_NAME=$(echo $ECR_REPO_URI | cut -d'/' -f2)
+        aws ecr describe-images --repository-name $REPO_NAME --image-ids imageTag=latest > /dev/null 2>&1
         if [ $? -eq 0 ]; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Image validation successful."
         else
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR - Image not found in ECR. Deployment failed."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR - Latest image not found in ECR. Deployment failed."
           exit 1
         fi
         
         #- New task definition with updated image -#
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating new task definition with updated image :"
-        NEW_TASK_DEF=$(echo $CURRENT_TASK_DEF | jq --arg IMAGE "$NEW_IMAGE_URI" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
         
+        #- Find the main app container (not the Falco sidecar) -#
+        CONTAINER_NAME=$(echo $CURRENT_TASK_DEF | jq -r '.containerDefinitions[] | select(.name != "falco") | .name' | head -1)
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Main app container name: $CONTAINER_NAME"
+        
+        #- Update the specific container image by name, not by index -#
+        NEW_TASK_DEF=$(echo $CURRENT_TASK_DEF | jq --arg IMAGE "$NEW_IMAGE_URI" --arg CONTAINER "$CONTAINER_NAME" '
+          .containerDefinitions = (.containerDefinitions | map(
+            if .name == $CONTAINER then 
+              .image = $IMAGE 
+            else 
+              . 
+            end
+          )) | 
+          del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)
+        ')
+
         #- Register new task definition -#
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Registering new task definition :"
         NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEF | aws ecs register-task-definition --cli-input-json file:///dev/stdin --query 'taskDefinition.taskDefinitionArn' --output text)
@@ -138,5 +152,4 @@ phases:
 artifacts:
   type: zip
   files:
-    - imagedefinitions.json
     - '**/*'
