@@ -512,7 +512,6 @@ deploy_cloudformation_stack() {
             "StagingECSService=$staging_ecs_service"
             "ProdECSCluster=$prod_ecs_cluster"
             "ProdECSService=$prod_ecs_service"
-            "ProdTargetGroup=$prod_target_group"
             "StagingECSTaskDefinition=$staging_ecs_task_definition"
             "ProdECSTaskDefinition=$prod_ecs_task_definition"
             "StagingASGName=$staging_auto_scaling_group"
@@ -552,7 +551,6 @@ deploy_cloudformation_stack() {
             "StagingECSService=$staging_ecs_service"
             "ProdECSCluster=$prod_ecs_cluster"
             "ProdECSService=$prod_ecs_service"
-            "ProdTargetGroup=$prod_target_group"
             "StagingECSTaskDefinition=$staging_ecs_task_definition"
             "ProdECSTaskDefinition=$prod_ecs_task_definition"
             "StagingASGName=$staging_auto_scaling_group"
@@ -669,7 +667,7 @@ main() {
         log_message "Deployment Rollbacked Successfully !" "SUCCESS"
         exit 0
     fi
-    
+
     #- I. Create Lambda ZIP package -#
     create_lambda_package
     
