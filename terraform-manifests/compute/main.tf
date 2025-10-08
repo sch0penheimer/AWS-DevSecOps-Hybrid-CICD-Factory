@@ -257,7 +257,7 @@ resource "aws_ecs_task_definition" "prod" {
   network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   cpu                      = "256"
-  memory                   = "512"
+  memory                   = "400"
   
   container_definitions    = jsonencode([
     {
@@ -292,9 +292,8 @@ resource "aws_ecs_task_definition" "prod" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/aws/ecs/${var.project_name}/production"
+          "awslogs-group"         = "${var.project_name}-falco-logs"
           "awslogs-region"        = "us-east-1"
-          "awslogs-stream-prefix" = "falco"
         }
       }
     }
