@@ -3,14 +3,10 @@
 This project implements a fully automated Hybrid DevSecOps platform on AWS, designed to enforce security and compliance at every stage of the software delivery lifecycle, while decoupling **the CI/CD pipeline and related resources** from **the main platform** that hosts ECS EC2-based containerized application workloads, respectively via AWS CloudFormation and Terraform, hence the "Hybrid" label.
 
 > [!NOTE]
-> A project architected, conceptualized, implemented, and fully documented by **Haitam Bidiouane** (*@sch0penheimer*).
+> Architected, conceptualized, implemented, and fully documented by **Haitam Bidiouane** (**@sch0penheimer**).
 
 ## Table of Contents
 - [Project Overview](#project-overview)
-- [Quick Start](#quick-start)
-  - [Prerequisites](#prerequisites)
-  - [Clone and Configure](#clone-and-configure)
-  - [Deploy (Terraform + CloudFormation)](#deploy-terraform--cloudformation)
 - [Architecture](#architecture)
   - [High-level AWS Architecture](#high-level-aws-architecture)
   - [Hybrid IaC Approach](#hybrid-iac-approach)
