@@ -2,6 +2,54 @@
 
 This project implements a robust, automated Hybrid DevSecOps platform on AWS, designed to enforce security and compliance at every stage of the software delivery lifecycle for containerized and EC2-based applications.
 
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Quick Start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Clone and Configure](#clone-and-configure)
+  - [Deploy (Terraform + CloudFormation)](#deploy-terraform--cloudformation)
+- [Architecture](#architecture)
+  - [High-level AWS Architecture](#high-level-aws-architecture)
+  - [Component Breakdown](#component-breakdown)
+    - [Terraform (Main Platform Infrastructure)](#terraform-platform-infrastructure)
+      - [Networking (VPC, Subnets, Security Groups)](#networking-vpc-subnets-security-groups)
+      - [...]
+    - [CloudFormation (CI/CD Pipeline + Related Resources)](#cloudformation-pipeline)
+      - [...]
+- [Infrastructure as Code (IaC)](#infrastructure-as-code-iac)
+  - [Terraform Structure & Modules](#terraform-structure--modules)
+  - [State Management & Backends](#state-management--backends)
+  - [CloudFormation Stacks & Parameters](#cloudformation-stacks--parameters)
+- [CI/CD Pipeline](#cicd-pipeline)
+  - [Pipeline Stages](#pipeline-stages)
+  - [CodeBuild Projects & Buildspecs](#codebuild-projects--buildspecs)
+  - [Deployment Targets](#deployment-targets)
+  - [Manual Approvals & Notifications](#manual-approvals--notifications)
+- [Security & Compliance](#security--compliance)
+  - [Secrets / Config Management](#secrets-config-management)
+  - [SCA / SAST / DAST / RASP Integrations (Clair, Snyk, OWASP ZAP, CNCF Falco)](#sca--sast--dast-integrations)
+    - [Clair]()
+    - [Snyk]()
+    - [OWASP ZAP]()
+    - [CNCF Falco]()
+  - [Security Hub Centalization & Findings Import](#security-hub-centalization--findings-import)
+  - [IAM Design & Least Privilege](#iam-design--least-privilege)
+  - [KMS & Encryption](#kms--encryption)
+  - [Compliance Mapping & Audit](#compliance-mapping--audit)
+- [Monitoring & Observability](#monitoring--observability)
+  - [CloudWatch Logs & Metrics](#cloudwatch-logs--metrics)
+  - [CloudTrail & AWS Config](#cloudtrail--aws-config)
+  - [Alerts & Dashboards](#alerts--dashboards)
+- [Repository Layout](#repository-layout)
+  - [Top-level Structure](#top-level-structure)
+  - [Important Files & Where to Find Them](#important-files--where-to-find-them)
+- [Configuration Reference](#configuration-reference)
+  - [.env Variables & Secrets](#env-variables--secrets)
+  - [Terraform Variables & Outputs](#terraform-variables--outputs)
+  - [CloudFormation Parameters](#cloudformation-parameters)
+- [License](#license)
+- [Contacts & Maintainers](#contacts--maintainers)
+
 ### **Hybrid IaC Approach**
 
 - **Terraform** manages core infrastructure and shared resources.
