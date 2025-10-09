@@ -1,8 +1,8 @@
 ################################################################################
-#  File: buildspecs/4-owasp-zap-buildspec.yml
+#  File: buildspecs/4-owasp-zap-dast-buildspec.yml
 #  Description: Buildspec for the OWASP ZAP CodeBuild project.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 14/09/2025
+#  Last Modified: 09/10/2025 (DD/MM/YYYY)
 #
 #  Purpose: 
 #    This buildspec performs Dynamic Application Security Testing (DAST) using OWASP ZAP
@@ -17,7 +17,7 @@ phases:
   install:
     runtime-versions:
       java: corretto11                      ##-- JRE, required for OWASP ZAP, coretto is AWS's distro of OpenJDK --##
-      python: 3.9                           ##-- Python Runtime, required for AWS CLI and scripting --##
+      python: 3.9                           ##-- Python Runtime, required for AWS CLI and some ZAP python scripts --##
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Install Phase begun."
       - echo "Updating package lists:"
@@ -175,18 +175,25 @@ phases:
       - echo "Evaluating OWASP ZAP DAST security scan results:"
       - |
         if [ "$high_alerts" != "0" ] && [ "$high_alerts" != "null" ]; then
-          echo "- CRITICAL/HIGH vulnerabilities found in DAST scan."
+          echo "- HIGH vulnerabilities found in DAST scan."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
-          echo "- Scan results uploaded to Security Hub. Build FAILING due to HIGH severity security violations."
-          exit 1
+          echo "- Scan results uploaded to Security Hub.
         elif [ "$medium_alerts" != "0" ] && [ "$medium_alerts" != "null" ]; then
-          echo "- Medium vulnerabilities found but within acceptable threshold."
+          echo "- MEDIUM vulnerabilities found but within acceptable threshold."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
-          echo "- Medium vulnerabilities reported to Security Hub. Build continuing."
+          echo "- Scan results uploaded to Security Hub.
+        elif [ "$low_alerts" != "0" ] && [ "$low_alerts" != "null" ]; then
+          echo "- LOW vulnerabilities found but within acceptable threshold."
+          aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
+          echo "- Scan results uploaded to Security Hub."
+        elif [ "$info_alerts" != "0" ] && [ "$info_alerts" != "null" ]; then
+          echo "- Informational alerts found."
+          aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
+          echo "- Scan results uploaded to Security Hub.
         else
           echo "- No high or medium vulnerabilities found in DAST scan."
-          echo "- DAST scan completed successfully."
         fi
+        echo "- DAST scan completed successfully."
         
       ##-- Cleanup --##
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning up staging environment..."

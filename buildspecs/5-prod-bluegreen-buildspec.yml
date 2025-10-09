@@ -2,7 +2,7 @@
 #  File: buildspecs/5-prod-bluegreen-buildspec.yml
 #  Description: Buildspec for Blue/Green deployment in production environment
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 30/09/2025
+#  Last Modified: 09/10/2025 (DD/MM/YYYY)
 #
 #  Purpose: 
 #    This buildspec file is designed to facilitate a Blue/Green deployment strategy

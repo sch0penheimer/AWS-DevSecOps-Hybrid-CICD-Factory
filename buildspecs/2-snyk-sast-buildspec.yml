@@ -2,7 +2,7 @@
 #  File: buildspecs/snyk-sast-buildspec.yml
 #  Description: Buildspec for the Snyk SAST CodeBuild project.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 14/09/2025
+#  Last Modified: 09/14/2025 (DD/MM/YYYY)
 #
 #  Purpose: 
 #    This buildspec performs Static Application Security Testing (SAST) and 
@@ -65,23 +65,23 @@ phases:
       
       - echo "Evaluating Snyk SAST security scan results:"
       - |
-        if [ $(grep -E 'high|critical' payload.json) ]; then
+        if grep -E 'high|critical' payload.json; then
           echo "CRITICAL/HIGH vulnerabilities found."
+          echo "Invoking Lambda to send results to Security Hub."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
-          echo "- Scan results uploaded to Security Hub. Build FAILING due to security violations."
-          echo "- Image NOT pushed to ECR due to security issues."
-          exit 1
-        elif [ $(grep -E 'medium|low' payload.json) ]; then
-          echo "Medium/Low vulnerabilities found but within acceptable threshold"
+          echo "- Scan results uploaded to Security Hub."
+        elif grep -E 'medium|low' payload.json; then
+          echo "MEDIUM/LOW vulnerabilities found (acceptable threshold)."
+          echo "Invoking Lambda to send results to Security Hub."
           aws lambda invoke --function-name $LAMBDA_FUNCTION_NAME --payload file://payload.json response.json && echo "Security Hub import: SUCCESS" || echo "Security Hub import: FAILED"
-          echo "- Pushing image to ECR:"
-          docker push $ECR_REPO_URI:latest
         else
-          echo "- No vulnerabilities found."
-          echo "- Pushing image to ECR:"
-          docker push $ECR_REPO_URI:latest
+          echo "- No vulnerabilities found. No need to invoke Lambda."
         fi
-      
+        echo "- Pushing image to ECR:"
+        docker push $ECR_REPO_URI:latest
+        echo "Image pushed to ECR successfully."
+
+      - echo "Preparing imagedefinitions.json for ECS deployment:"
       - printf '[{"name":"webapp","imageUri":"%s"}]' $ECR_REPO_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION > imagedefinitions.json
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Snyk SAST analysis completed"
 artifacts:

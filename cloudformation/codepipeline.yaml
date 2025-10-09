@@ -909,7 +909,7 @@ Resources:
           - !Ref CodeBuildSecurityGroupId
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildspecs/4-owasp-zap-buildspec.yml
+        BuildSpec: buildspecs/4-owasp-zap-dast-buildspec.yml
       LogsConfig:
         CloudWatchLogs:
           GroupName: !Ref PipelineCloudWatchLogGroup
