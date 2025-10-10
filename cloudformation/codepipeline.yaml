@@ -8,7 +8,7 @@
 #    - Code & container security scanning (Snyk, Clair/ECR, OWASP ZAP)
 #    - Compliance monitoring (AWS CloudTrail, AWS CloudWatch)
 #    - Automated deployment to ECS clusters
-#    - Security best practices: Secrets Detection, SCA/SAST, DAST, IAM least privilege, audit logging
+#    - Security best practices: Secrets Detection, SAST, SCA, DAST, IAM least privilege, audit logging
 #
 #  Sections:
 #    - Parameters: Pipeline configuration and secrets
@@ -24,7 +24,7 @@ Description: >
   Terraform and orchestrates a multi-stage CodePipeline via CloudFormation, integrating code
   and container security scanning, centralized artifact storage with encryption, compliance monitoring,
   and automated deployment to ECS clusters. The solution enforces security best practices at every stage,
-  including secrets detection, SCA/SAST, DAST, RASP, IAM least privilege, and audit logging, providing production-grade
+  including secrets detection, SCA, SAST, DAST, RASP, IAM least privilege, and audit logging, providing production-grade
   application delivery with integrated security and compliance.
 
 ##-- Parameters Section --##
@@ -659,7 +659,7 @@ Resources:
                 ProjectName: !Ref SecretsAnalysisBuildProject
               RunOrder: 2
         
-        #- 3) Snyk SCA/SAST + Clair ECR & Staging Deployment Stage -#
+        #- 3) Snyk SAST + Clair SCA & Staging Deployment Stage -#
         - Name: SAST-SCA-Analysis-and-Staging-Stage
           Actions:
             #- 3.1. Snyk SAST Analysis Action -#
@@ -689,7 +689,7 @@ Resources:
               OutputArtifacts: 
                 - Name: ClairSASTArtifacts
               Configuration:
-                ProjectName: !Ref ClairSASTStagingBuildProject
+                ProjectName: !Ref ClairSCAStagingBuildProject
               RunOrder: 4
 
         #- 4) DAST Stage -#
@@ -791,7 +791,7 @@ Resources:
   SnykSASTBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Description: Static Code Analysis (SCA) / Static Application Security Testing (SAST) Build Project using Snyk
+      Description: Static Application Security Testing (SAST) Build Project using Snyk
       Artifacts:
         Type: CODEPIPELINE
       EncryptionKey: !GetAtt PipelineKMSKey.Arn
@@ -833,11 +833,11 @@ Resources:
         - Key: pipeline-name
           Value: !Sub ${AWS::StackName}-pipeline
 
-  #- 3. Clair SCA/SAST + Staging Build Project -#
-  ClairSASTStagingBuildProject:
+  #- 3. Clair SCA + Staging Build Project -#
+  ClairSCAStagingBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Description: ECR Container Security (via Clair) Analysis + Staging Build Project
+      Description: SCA (Software Composition Analysis) via Clair + Staging Build Project
       Artifacts:
         Type: CODEPIPELINE
       EncryptionKey: !GetAtt PipelineKMSKey.Arn
@@ -1120,5 +1120,3 @@ Outputs:
   CodeBuildServiceRoleArn:
     Description: Service Role for the CodeBuild Projects
     Value: !GetAtt CodeBuildServiceRole.Arn
-
-
