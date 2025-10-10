@@ -41,9 +41,9 @@
     "OWASP-Zap": "OWASP ZAP dynamic security scan"
   },
   "finding_titles": {
-    "ECR": "AWS ECR's Clair StaticCode Analysis",
-    "SNYK": "Snyk Static Application Security Testing Analysis",
-    "OWASP-Zap": "OWASP ZAP Dynamic Application Security Testing Analysis"
+    "ECR": "AWS ECR's Clair SCA (Software Composition Analysis) Analysis",
+    "SNYK": "Snyk SAST (Static Application Security Testing) Analysis",
+    "OWASP-Zap": "OWASP ZAP DAST (Dynamic Application Security Testing) Analysis"
   },
   "remediation_urls": {
     "cloudformation": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html",
