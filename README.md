@@ -1,11 +1,19 @@
+
+---
+> **Last Updated:** October 10th, 2025  
+> **Author:** [Haitam Bidiouane](https://github.com/sch0penheimer)
+---
+
 # AWS DevSecOps Hybrid CI/CD Platform
 
-This project implements a fully automated Hybrid DevSecOps platform on AWS, designed to enforce security and compliance at every stage of the software delivery lifecycle, while decoupling **the CI/CD pipeline and related resources** from **the main platform** that hosts ECS EC2-based containerized application workloads, respectively via AWS CloudFormation and Terraform, hence the "Hybrid" label.
+This project implements a fully automated Hybrid DevSecOps platform on AWS, designed to enforce security and compliance at every stage of the software delivery lifecycle, while decoupling <ins>**the CI/CD pipeline and related resources**</ins> from <ins>**the main platform**</ins> that hosts ECS EC2-based containerized application workloads, respectively via AWS CloudFormation and Terraform, hence the "Hybrid" label.
 
 > [!NOTE]
-> Architected, conceptualized, implemented, and fully documented by **Haitam Bidiouane** (**@sch0penheimer**).
+> Architected, proposed, implemented, and fully documented by **Haitam Bidiouane** (***@sch0penheimer***).
 
 ## Table of Contents
+
+### [Section I: ](#i-)
 - [Project Overview](#project-overview)
 - [Architecture](#architecture)
   - [High-level AWS Architecture](#high-level-aws-architecture)
@@ -20,6 +28,8 @@ This project implements a fully automated Hybrid DevSecOps platform on AWS, desi
     - [CodePipeline Structure](#codepipeline-structure)
     - [CodeBuild Projects](#codebuild-projects)
     - [Security Integrations](#security-integrations)
+
+### [Section II: ](#ii)
 - [ECS Infrastructure Details](#ecs-infrastructure-details)
   - [Cluster Configuration](#cluster-configuration)
   - [Task Definitions](#task-definitions)
@@ -45,6 +55,8 @@ This project implements a fully automated Hybrid DevSecOps platform on AWS, desi
   - [ECS Container Insights](#ecs-container-insights)
   - [Application Load Balancer Metrics](#application-load-balancer-metrics)
   - [CloudTrail & Config](#cloudtrail--config)
+
+### [Section III: ](#iii)
 - [Deployment Scripts](#deployment-scripts)
   - [Bash Deployment Script](#bash-deployment-script)
   - [PowerShell Deployment Script](#powershell-deployment-script)
