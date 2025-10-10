@@ -3,10 +3,10 @@
 #  Description: Network infrastructure provisioning for the AWS DevSecOps
 #               Hybrid CI/CD Platform.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 21/09/2025
+#  Last Modified: 10/10/2025
 #
-#  Purpose: Provisions VPC, subnets, route tables, and security groups 
-#           for the platform.
+#  Purpose: Provisions VPC, subnets, route tables, NAT Instances and security
+#  groups for the platform.
 #######################################################################
 
 /**    
@@ -34,11 +34,12 @@ data "aws_ami" "nat_instance" {
   }
 }
 
-#-- NAT Instance --#
+#-- NAT Instances --#
 resource "aws_instance" "nat_instance" {
+  count                  = length(var.public_subnet_cidrs)
   ami                    = data.aws_ami.nat_instance.id
   instance_type          = var.nat_instance_type
-  subnet_id              = aws_subnet.public[0].id
+  subnet_id              = aws_subnet.public[count.index].id
   vpc_security_group_ids = [aws_security_group.nat_instance.id]
   
   #- Disable source/destination check (required for NAT functionality) -#
@@ -48,8 +49,9 @@ resource "aws_instance" "nat_instance" {
   associate_public_ip_address = true
 
   tags = {
-    Name = "${var.project_name}-nat-instance"
+    Name = "${var.project_name}-nat-instance-${count.index + 1}"
     Type = "NAT"
+    AZ   = var.availability_zones[count.index]
   }
 
   #- User data to configure NAT functionality -#
@@ -72,7 +74,7 @@ resource "aws_instance" "nat_instance" {
 
   depends_on = [
     aws_vpc.main,
-    aws_subnet.public[0],
+    aws_subnet.public,
     aws_security_group.nat_instance
   ]
 }
@@ -142,6 +144,7 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table" "private" {
+  count  = length(var.private_subnet_cidrs)
   vpc_id = aws_vpc.main.id
 
   /**
@@ -150,23 +153,26 @@ resource "aws_route_table" "private" {
         cidr_block = "${var.vpc_cidr}"
         gateway_id = local
       }
+    
+    BUT, we will need to add the NAT route to target the internet from private subnets,
+    but this is assured only after we have the NAT instances live, so we will do it separately as a aws_route resource
   **/
 
   tags = {
-    Name        = "${var.project_name}-private-route-table"
+    Name = "${var.project_name}-private-route-table-${count.index + 1}"
+    AZ   = var.availability_zones[count.index]
   }
 
   depends_on = [aws_instance.nat_instance]
 }
 
-resource "null_resource" "private_nat_route" {
-  depends_on = [aws_instance.nat_instance, aws_route_table.private]
+resource "aws_route" "private_nat_route" {
+  count                  = length(var.private_subnet_cidrs)
+  route_table_id         = aws_route_table.private[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  instance_id            = aws_instance.nat_instance[count.index].id
 
-  provisioner "local-exec" {
-    command = <<EOT
-      aws ec2 create-route --route-table-id ${aws_route_table.private.id} --destination-cidr-block 0.0.0.0/0 --instance-id ${aws_instance.nat_instance.id}
-    EOT
-  }
+  depends_on = [aws_instance.nat_instance, aws_route_table.private]
 }
 
 resource "aws_route_table_association" "public" {
@@ -180,7 +186,7 @@ resource "aws_route_table_association" "private" {
   count = length(var.private_subnet_cidrs)
 
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[count.index].id
 }
 
 resource "aws_security_group" "prod_alb" {
