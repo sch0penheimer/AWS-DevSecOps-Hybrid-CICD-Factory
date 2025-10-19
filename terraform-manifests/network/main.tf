@@ -3,7 +3,7 @@
 #  Description: Network infrastructure provisioning for the AWS DevSecOps
 #               Hybrid CI/CD Platform.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 10/10/2025
+#  Last Modified: 19/10/2025
 #
 #  Purpose: Provisions VPC, subnets, route tables, NAT Instances and security
 #  groups for the platform.
@@ -166,11 +166,14 @@ resource "aws_route_table" "private" {
   depends_on = [aws_instance.nat_instance]
 }
 
-resource "aws_route" "private_nat_route" {
-  count                  = length(var.private_subnet_cidrs)
-  route_table_id         = aws_route_table.private[count.index].id
-  destination_cidr_block = "0.0.0.0/0"
-  instance_id            = aws_instance.nat_instance[count.index].id
+resource "null_resource" "private_nat_route" {
+  count      = length(var.private_subnet_cidrs)
+
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ec2 create-route --route-table-id ${aws_route_table.private[count.index].id} --destination-cidr-block 0.0.0.0/0 --instance-id ${aws_instance.nat_instance[count.index].id}
+    EOT
+  }
 
   depends_on = [aws_instance.nat_instance, aws_route_table.private]
 }
