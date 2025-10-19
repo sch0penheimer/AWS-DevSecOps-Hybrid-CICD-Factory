@@ -93,7 +93,6 @@ function Get-OSType {
 function Test-Prerequisites {
     Write-LogMessage "Checking prerequisites:" "INFO"
     $missing_tools = @()
-    $all_good = $true
     
     ##- Check AWS CLI installation -##
     try {
@@ -103,7 +102,6 @@ function Test-Prerequisites {
     } catch {
         Write-LogMessage "AWS CLI not found" "ERROR"
         $missing_tools += "AWS CLI"
-        $all_good = $false
     }
 
     ##- Check Terraform -##
@@ -114,23 +112,19 @@ function Test-Prerequisites {
         Write-LogMessage "Terraform found: $tf_version" "SUCCESS"
         
         ##- Check minimum Terraform version (1.0+) -##
-        $tf_major_version = [int]$tf_version.Substring(1).Split('.')[0]
-        if ($tf_major_version -lt 1) {
+        if ([int]$tf_version.Substring(1).Split('.')[0] -lt 1) {
             Write-LogMessage "Terraform version $tf_version is too old. Required: v1.0+" "ERROR"
             $missing_tools += "Terraform v1.0+"
-            $all_good = $false
         }
     } catch {
         Write-LogMessage "Terraform not found" "ERROR"
         $missing_tools += "Terraform"
-        $all_good = $false
     }
     
     ##- Check PowerShell version -##
     if ($PSVersionTable.PSVersion.Major -lt 5) {
         Write-LogMessage "PowerShell version $($PSVersionTable.PSVersion) is too old. Required: 5.0+" "ERROR"
         $missing_tools += "PowerShell 5.0+"
-        $all_good = $false
     } else {
         Write-LogMessage "PowerShell version: $($PSVersionTable.PSVersion)" "SUCCESS"
     }
@@ -139,15 +133,13 @@ function Test-Prerequisites {
     if (-not (Test-Path $ENV_FILE)) {
         Write-LogMessage ".env file not found at: $ENV_FILE" "ERROR"
         $missing_tools += ".env configuration file"
-        $all_good = $false
     } else {
         Write-LogMessage ".env file found" "SUCCESS"
     }
     
     ##- Exit if any prerequisites are missing -##
-    if (-not $all_good) {
-        Write-LogMessage "PREREQUISITES CHECK FAILED" "ERROR"
-        Write-LogMessage "Missing tools/requirements: $($missing_tools -join ', ')" "ERROR"
+    if ($missing_tools.Count -gt 0) {
+        Write-LogMessage "PREREQUISITES CHECK FAILED - Missing: $($missing_tools -join ', ')" "ERROR"
         Write-LogMessage "Please install the missing prerequisites and re-run the script." "WARNING"
         exit 1
     }
@@ -311,34 +303,22 @@ function Deploy-Infrastructure {
     
     Write-LogMessage "Initializing Terraform:" "INFO"
     terraform init
-    if ($LASTEXITCODE -ne 0) {
-        Write-LogMessage "Terraform initialization failed!" "ERROR"
-        exit 1
-    }
+    if ($LASTEXITCODE -ne 0) { Write-LogMessage "Terraform initialization failed!" "ERROR"; exit 1 }
     
     ##- Validate Terraform config -##
     Write-LogMessage "Validating Terraform configuration:" "INFO"
     terraform validate
-    if ($LASTEXITCODE -ne 0) {
-        Write-LogMessage "Terraform validation failed!" "ERROR"
-        exit 1
-    }
+    if ($LASTEXITCODE -ne 0) { Write-LogMessage "Terraform validation failed!" "ERROR"; exit 1 }
 
     ##- Plan deployment -##
     Write-LogMessage "Planning Terraform deployment:" "INFO"
     terraform plan -out=tfplan
-    if ($LASTEXITCODE -ne 0) {
-        Write-LogMessage "Terraform planning failed!" "ERROR"
-        exit 1
-    }
+    if ($LASTEXITCODE -ne 0) { Write-LogMessage "Terraform planning failed!" "ERROR"; exit 1 }
     
     ##- Apply deployment -##
     Write-LogMessage "Applying Terraform deployment:" "WARNING"
     terraform apply tfplan
-    if ($LASTEXITCODE -ne 0) {
-        Write-LogMessage "Terraform apply failed!" "ERROR"
-        exit 1
-    }
+    if ($LASTEXITCODE -ne 0) { Write-LogMessage "Terraform apply failed!" "ERROR"; exit 1 }
     
     Write-LogMessage "Terraform infrastructure deployed successfully" "SUCCESS"
     Set-Location $ROOT_DIR
@@ -629,19 +609,16 @@ function Remove-CloudFormationStack {
 }
 
 function Show-NextSteps {
-    Write-Host ""
     Write-LogMessage "AWS DevSecOps Hybrid CI/CD Platform deployment deployed successfully" "SUCCESS"
-    Write-Host ""
     Write-LogMessage "Next steps:" "INFO"
     Write-Host "   1. Complete the CodeConnections connection in AWS Console"
     Write-Host "   2. Create an AWS Organization for AWS Security Hub [if not done already]"
     Write-Host "   3. Enable AWS Security Hub CSPM (Services + Policies) in your account [if not done already]"
     Write-Host "   4. Verify SNS email subscriptions in your inbox"
     Write-Host "   5. Monitor pipeline execution in AWS CodePipeline console"
-    Write-Host ""
-    }
+}
 
-unction Main {
+function Main {
     Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Blue
     Write-Host "║                    AWS DevSecOps Hybrid CI/CD Platform                       ║" -ForegroundColor Blue
     Write-Host "║                    Deployment Script (PowerShell) v2.0                       ║" -ForegroundColor Blue
