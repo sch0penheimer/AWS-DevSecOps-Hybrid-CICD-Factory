@@ -677,8 +677,8 @@ Resources:
                 ProjectName: !Ref SnykSASTBuildProject
               RunOrder: 3
 
-            #- 3.2. Clair ECR SAST Analysis + Staging Action -#
-            - Name: Clair-SAST-Analysis-and-Staging-Action
+            #- 3.2. Clair ECR SCA Analysis + Staging Action -#
+            - Name: Clair-SCA-Analysis-and-Staging-Action
               InputArtifacts:
                 - Name: SourceCodeArtifactOutput
               ActionTypeId:
