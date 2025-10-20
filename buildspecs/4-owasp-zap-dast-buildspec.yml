@@ -32,9 +32,9 @@ phases:
       - tar -xzf ZAP_2.16.1_Linux.tar.gz
       - mv ZAP_2.16.1 /opt/zap
       - chmod +x /opt/zap/zap.sh
-      - mkdir -p /home/zap/.ZAP
-      - chown -R $(whoami) /opt/zap
-      - chown -R $(whoami) /home/zap
+      - sudo mkdir -p /home/zap/.ZAP
+      - sudo chown -R $(whoami) /opt/zap
+      - sudo chown -R $(whoami) /home/zap
       - echo "ZAP installation completed."
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installation Phase completed successfully."
   
@@ -71,25 +71,15 @@ phases:
       - ZAP_PID=$!
       - echo "ZAP PID -> $ZAP_PID"
       - echo "Waiting for ZAP to start..."
-      - sleep 30
-      - echo "Testing ZAP connectivity:"
       - |
-        for i in {1..10}; do
-          if curl -f "http://localhost:8080/JSON/core/view/version/" > /dev/null 2>&1; then
-            echo "ZAP is ready!"
-            break
-          else
-            echo "Attempt $i: ZAP not ready, waiting..."
-            sleep 10
-          fi
-          if [ $i -eq 10 ]; then
-            echo "ZAP failed to start"
-            exit 1
-          fi
+        until curl -s http://localhost:8080/JSON/core/view/version/ > /dev/null; do
+          echo "Waiting for ZAP to be ready..."
+          sleep 4
         done
+      - echo "ZAP is up and running!"
+      - echo "ZAP process on 8080 is -> $(netstat -tlnp | grep 8080)"
       - curl "http://localhost:8080/JSON/core/view/version/" | jq .
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."
-
 
   build:
     commands:
