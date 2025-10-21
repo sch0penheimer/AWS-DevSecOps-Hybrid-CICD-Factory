@@ -70,7 +70,6 @@ phases:
       - ZAP_PID=$!
       - echo "ZAP PID -> $ZAP_PID"
       - echo "Waiting for ZAP to start (this may take 30-60 seconds)..."
-      - echo "Waiting for ZAP to start (this may take 30-60 seconds)..."
       - |
         max_attempts=30
         attempt=0
