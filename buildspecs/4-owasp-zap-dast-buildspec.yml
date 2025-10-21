@@ -70,37 +70,38 @@ phases:
       - ZAP_PID=$!
       - echo "ZAP PID -> $ZAP_PID"
       - echo "Waiting for ZAP to start (this may take 30-60 seconds)..."
+      - echo "Waiting for ZAP to start (this may take 30-60 seconds)..."
       - |
         max_attempts=30
         attempt=0
         while [ $attempt -lt $max_attempts ]; do
-            attempt=$((attempt + 1))
-            
-            if curl -s http://localhost:8080/JSON/core/view/version/ > /dev/null 2>&1; then
-                echo "ZAP is ready!"
-                break
-            fi
-            
-            echo "Attempt $attempt/$max_attempts - Waiting for ZAP..."
-            sleep 5
-            
-            if ! kill -0 $ZAP_PID 2>/dev/null; then
-                echo "ERROR: ZAP process died during startup"
-                echo ""
-                echo "=== ZAP Log Contents ==="
-                cat /tmp/zap.log
-                echo "=== End ZAP Logs ==="
-                exit 1
-            fi
-        done
-
-        if [ $attempt -ge $max_attempts ]; then
-            echo "ERROR: ZAP failed to start within timeout"
+          attempt=$((attempt + 1))
+          
+          if curl -s http://localhost:8080/JSON/core/view/version/ > /dev/null 2>&1; then
+            echo "ZAP is ready!"
+            break
+          fi
+          
+          echo "Attempt $attempt/$max_attempts - Waiting for ZAP..."
+          sleep 5
+          
+          if ! kill -0 $ZAP_PID 2>/dev/null; then
+            echo "ERROR: ZAP process died during startup"
             echo ""
             echo "=== ZAP Log Contents ==="
             cat /tmp/zap.log
             echo "=== End ZAP Logs ==="
             exit 1
+          fi
+        done
+
+        if [ $attempt -ge $max_attempts ]; then
+          echo "ERROR: ZAP failed to start within timeout"
+          echo ""
+          echo "=== ZAP Log Contents ==="
+          cat /tmp/zap.log
+          echo "=== End ZAP Logs ==="
+          exit 1
         fi
 
         echo ""
