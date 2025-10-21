@@ -84,7 +84,6 @@ phases:
             echo "Attempt $attempt/$max_attempts - Waiting for ZAP..."
             sleep 5
             
-            #- Check if process is still running -#
             if ! kill -0 $ZAP_PID 2>/dev/null; then
                 echo "ERROR: ZAP process died during startup"
                 echo ""
@@ -247,7 +246,6 @@ phases:
       - |
         echo "Scaling down staging Auto Scaling Group to 0 instances..."
         
-        #- Scale down the ASG -#
         aws autoscaling set-desired-capacity \
           --auto-scaling-group-name $ASG_NAME \
           --desired-capacity 0 \
