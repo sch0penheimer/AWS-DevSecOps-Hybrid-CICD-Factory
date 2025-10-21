@@ -2,7 +2,7 @@
 #  File: buildspecs/4-owasp-zap-dast-buildspec.yml
 #  Description: Buildspec for the OWASP ZAP CodeBuild project.
 #  Author: Haitam Bidiouane (@sch0penheimer)
-#  Last Modified: 09/10/2025 (DD/MM/YYYY)
+#  Last Modified: 21/10/2025 (DD/MM/YYYY)
 #
 #  Purpose: 
 #    This buildspec performs Dynamic Application Security Testing (DAST) using OWASP ZAP
@@ -16,7 +16,7 @@ env:
 phases:
   install:
     runtime-versions:
-      java: corretto11                      ##-- JRE, required for OWASP ZAP, coretto is AWS's distro of OpenJDK --##
+      java: corretto21                      ##-- JRE, required for OWASP ZAP, coretto is AWS's distro of OpenJDK --##
       python: 3.9                           ##-- Python Runtime, required for AWS CLI and some ZAP python scripts --##
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Install Phase begun."
