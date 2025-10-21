@@ -26,6 +26,8 @@ phases:
       - apt-get -y install jq python3-pip python3-dev curl
       - echo "Installing/Upgrading the AWS CLI:"
       - pip3 install --upgrade awscli
+      - echo "Installing netstat (net-tools):"
+      - apt-get -y install net-tools
       - echo "Downloading and installing OWASP ZAP:"
       - cd /tmp
       - wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.16.1/ZAP_2.16.1_Linux.tar.gz
@@ -63,34 +65,79 @@ phases:
         fi
 
       - echo "Starting OWASP ZAP daemon:"
-      - export DISPLAY=:99
-      - Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-      - sleep 2
-      - echo "Starting ZAP in daemon mode..."
-      - /opt/zap/zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true > /tmp/zap.log 2>&1 &
+      - echo "Starting ZAP in headless daemon mode..."
+      - /opt/zap/zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true > /tmp/zap.log 2>&1 &
       - ZAP_PID=$!
       - echo "ZAP PID -> $ZAP_PID"
-      - echo "Waiting for ZAP to start..."
+      - echo "Waiting for ZAP to start (this may take 30-60 seconds)..."
       - |
-        until curl -s http://localhost:8080/JSON/core/view/version/ > /dev/null; do
-          echo "Waiting for ZAP to be ready..."
-          sleep 4
+        max_attempts=30
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+            attempt=$((attempt + 1))
+            
+            if curl -s http://localhost:8080/JSON/core/view/version/ > /dev/null 2>&1; then
+                echo "ZAP is ready!"
+                break
+            fi
+            
+            echo "Attempt $attempt/$max_attempts - Waiting for ZAP..."
+            sleep 5
+            
+            #- Check if process is still running -#
+            if ! kill -0 $ZAP_PID 2>/dev/null; then
+                echo "ERROR: ZAP process died during startup"
+                echo ""
+                echo "=== ZAP Log Contents ==="
+                cat /tmp/zap.log
+                echo "=== End ZAP Logs ==="
+                exit 1
+            fi
         done
-      - echo "ZAP is up and running!"
-      - echo "ZAP process on 8080 is -> $(netstat -tlnp | grep 8080)"
-      - curl "http://localhost:8080/JSON/core/view/version/" | jq .
-      - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build Phase completed successfully."
+
+        if [ $attempt -ge $max_attempts ]; then
+            echo "ERROR: ZAP failed to start within timeout"
+            echo ""
+            echo "=== ZAP Log Contents ==="
+            cat /tmp/zap.log
+            echo "=== End ZAP Logs ==="
+            exit 1
+        fi
+
+        echo ""
+        echo "ZAP Version:"
+        curl -s "http://localhost:8080/JSON/core/view/version/" | jq .
+
+        echo ""
+        echo "ZAP Process Info:"
+        ps aux | grep "[z]ap" || echo "No ZAP process found in ps output"
+
+        echo ""
+        echo "Port 8080 Status:"
+        netstat -tlnp 2>/dev/null | grep 8080 || ss -tlnp | grep 8080 || echo "Could not check port status"
+
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-scan phase completed."
 
   build:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build phase started."
 
       - echo "Starting OWASP ZAP Spider Scan:"
-      - spider_scanid=$(curl "http://localhost:8080/JSON/spider/action/scan/?url=$APPLICATION_URL&recurse=true" | jq -r '.scan')
-      - echo "Spider Scan ID -> $spider_scanid"
+      - |
+        spider_response=$(curl -s "http://localhost:8080/JSON/spider/action/scan/?url=$APPLICATION_URL&recurse=true")
+        echo "Spider API Response: $spider_response"
+
+        spider_scanid=$(echo "$spider_response" | jq -r '.scan')
+        echo "Spider Scan ID: $spider_scanid"
+
+        if [ "$spider_scanid" = "null" ] || [ -z "$spider_scanid" ]; then
+            echo " ERROR: Failed to start spider scan"
+            echo "Full response: $spider_response"
+            exit 1
+        fi
       - echo "Waiting for spider scan to complete:"
       - |
-        stat=0;
+        stat=0
         timeout=600
         counter=0
         while [ "$stat" != "100" ] && [ $counter -lt $timeout ]; do
@@ -110,11 +157,21 @@ phases:
         fi
 
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting OWASP ZAP Active Scan:"
-      - active_scanid=$(curl "http://localhost:8080/JSON/ascan/action/scan/?url=$APPLICATION_URL&recurse=true&inScopeOnly=false" | jq -r '.scan')
-      - echo "Active Scan ID -> $active_scanid"
+      - |
+        active_response=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=$APPLICATION_URL&recurse=true&inScopeOnly=false")
+        echo "Active Scan API Response: $active_response"
+
+        active_scanid=$(echo "$active_response" | jq -r '.scan')
+        echo "Active Scan ID: $active_scanid"
+
+        if [ "$active_scanid" = "null" ] || [ -z "$active_scanid" ]; then
+            echo " ERROR: Failed to start active scan"
+            echo "Full response: $active_response"
+            exit 1
+        fi
       - echo "Waiting for active scan to complete:"
       - |
-        stat=0;
+        stat=0
         timeout=900
         counter=0
         while [ "$stat" != "100" ] && [ $counter -lt $timeout ]; do
