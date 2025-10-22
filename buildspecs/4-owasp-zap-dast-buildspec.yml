@@ -44,13 +44,13 @@ phases:
     commands:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pre-build phase started."
       - echo "Verifying staging environment readiness:"
-      - echo "Application URL for DAST -> $APPLICATION_URL"
+      - echo "Application URL for DAST -> http://$APPLICATION_URL"
       - |
         echo "Testing staging application accessibility..."
         timeout=300
         counter=0
         while [ $counter -lt $timeout ]; do
-          if curl -f --connect-timeout 10 "$APPLICATION_URL" > /dev/null 2>&1; then
+          if curl -f --connect-timeout 10 "http://$APPLICATION_URL" > /dev/null 2>&1; then
             echo "Staging application is accessible"
             break
           fi
@@ -114,14 +114,14 @@ phases:
 
       - echo "Starting OWASP ZAP Spider Scan:"
       - | 
-        spider_response=$(curl -s "http://localhost:8080/JSON/spider/action/scan/?url=$APPLICATION_URL&recurse=true")
+        spider_response=$(curl -s "http://localhost:8080/JSON/spider/action/scan/?url=http://$APPLICATION_URL")
         echo "Spider API Response: $spider_response"
 
         spider_scanid=$(echo "$spider_response" | jq -r '.scan')
         echo "Spider Scan ID: $spider_scanid"
 
         if [ "$spider_scanid" = "null" ] || [ -z "$spider_scanid" ]; then
-            echo " ERROR: Failed to start spider scan"
+            echo "Failed to start spider scan"
             echo "Full response: $spider_response"
             exit 1
         fi
@@ -148,14 +148,14 @@ phases:
 
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting OWASP ZAP Active Scan:"
       - |
-        active_response=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=$APPLICATION_URL&recurse=true&inScopeOnly=false")
+        active_response=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=http://$APPLICATION_URL")
         echo "Active Scan API Response: $active_response"
 
         active_scanid=$(echo "$active_response" | jq -r '.scan')
         echo "Active Scan ID: $active_scanid"
 
         if [ "$active_scanid" = "null" ] || [ -z "$active_scanid" ]; then
-            echo " ERROR: Failed to start active scan"
+            echo "Failed to start active scan"
             echo "Full response: $active_response"
             exit 1
         fi
@@ -188,10 +188,10 @@ phases:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Post-build phase started."
 
       - echo "Analyzing scan results:"
-      - high_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.High // 0')
-      - medium_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Medium // 0')
-      - low_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Low // 0')
-      - info_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=$APPLICATION_URL" | jq -r '.alertsSummary.Informational // 0')
+      - high_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=http://$APPLICATION_URL" | jq -r '.alertsSummary.High // 0')
+      - medium_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=http://$APPLICATION_URL" | jq -r '.alertsSummary.Medium // 0')
+      - low_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=http://$APPLICATION_URL" | jq -r '.alertsSummary.Low // 0')
+      - info_alerts=$(curl "http://localhost:8080/JSON/alert/view/alertsSummary/?baseurl=http://$APPLICATION_URL" | jq -r '.alertsSummary.Informational // 0')
       
       - echo "=== OWASP ZAP DAST Scan Results ==="
       - echo "High severity alerts -> $high_alerts"
