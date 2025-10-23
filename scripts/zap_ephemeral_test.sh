@@ -232,7 +232,7 @@ while [ "$stat" != "100" ] && [ $counter -lt $timeout ]; do
 done
 
 if [ $counter -ge $timeout ]; then
-    echo "⚠ Active scan timed out - proceeding with partial results"
+    echo "Active scan timed out - proceeding with partial results"
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Active scan completed."
@@ -269,10 +269,10 @@ echo "=========================================="
 
 echo ""
 if [ "$high_alerts" != "0" ] && [ "$high_alerts" != "null" ]; then
-    echo "⚠ HIGH severity vulnerabilities detected!"
+    echo "HIGH severity vulnerabilities detected!"
     exit 1
 elif [ "$medium_alerts" != "0" ] && [ "$medium_alerts" != "null" ]; then
-    echo "⚠ MEDIUM severity vulnerabilities detected (within threshold)"
+    echo "MEDIUM severity vulnerabilities detected (within threshold)"
 elif [ "$low_alerts" != "0" ] && [ "$low_alerts" != "null" ]; then
     echo " Only LOW severity vulnerabilities detected"
 else

@@ -46,7 +46,6 @@ phases:
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Build phase started."
       - echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Blue/Green deployment process :"
       - |
-        #- Current task definition -#
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Retrieving current task definition details :"
         CURRENT_TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_DEFINITION --query 'taskDefinition')
         
@@ -87,7 +86,7 @@ phases:
 
         #- Register new task definition -#
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Registering new task definition :"
-        NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEF | aws ecs register-task-definition --cli-input-json file:///dev/stdin --query 'taskDefinition.taskDefinitionArn' --output text)
+        NEW_TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --query 'taskDefinition.taskDefinitionArn' --output text)
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] New task definition ARN: $NEW_TASK_DEF_ARN"
         
         #- Get current service status before deployment -#
@@ -106,7 +105,7 @@ phases:
         
         #- Wait for deployment to complete with timeout -#
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Waiting for deployment to complete (timeout: 20 minutes) :"
-        timeout 1200 aws ecs wait services-stable --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME
+        aws ecs wait services-stable --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME
         
         if [ $? -eq 0 ]; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] Blue/Green deployment completed successfully!"
