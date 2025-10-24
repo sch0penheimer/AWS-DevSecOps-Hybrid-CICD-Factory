@@ -78,7 +78,7 @@ This project implements a fully automated Hybrid DevSecOps platform on AWS, desi
 - [License](#license)
 
 
-<br/><br/><br/>
+<br/><br/>
 
 # Section I: Platform Architecture & Infrastructure Overview
 
@@ -119,7 +119,7 @@ Also, the platform is specifically architected for ***AWS Free Tier compatibilit
 This platform implements a *strategic separation of Infrastructure as Code responsibilities* between <ins>**Terraform**</ins> and <ins>**AWS CloudFormation**</ins>, creating a hybrid model that leverages the strengths of each tool while maintaining clear boundaries of concern.
 
 <figure>
-  <img src="doc/metadoc/hybrid_iac.png" alt="Hybrid IaC Architecture">
+  <img src="doc/Metadoc/hybrid_iac.png" alt="Hybrid IaC Architecture">
   <figcaption><em>Figure 1: Hybrid Infrastructure as Code Architecture - Separation of concerns and integration between Terraform and AWS CloudFormation</em></figcaption>
 </figure>
 
