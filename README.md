@@ -118,10 +118,13 @@ Also, the platform is specifically architected for ***AWS Free Tier compatibilit
 
 This platform implements a *strategic separation of Infrastructure as Code responsibilities* between <ins>**Terraform**</ins> and <ins>**AWS CloudFormation**</ins>, creating a hybrid model that leverages the strengths of each tool while maintaining clear boundaries of concern.
 
-<figure>
-  <img src="doc/Metadoc/hybrid_iac.png" alt="Hybrid IaC Architecture">
-  <figcaption><em>Figure 1: Hybrid Infrastructure as Code Architecture - Separation of concerns and integration between Terraform and AWS CloudFormation</em></figcaption>
-</figure>
+<div align="center">
+
+![Hybrid IaC Architecture](./doc/Metadoc/hybrid_iac.png)
+
+*Figure 1: Hybrid Infrastructure as Code Architecture - Separation of concerns and integration between Terraform and AWS CloudFormation*
+
+</div>
 
 **I- Terraform Domain - Platform Infrastructure:**
 - **Scope**: Long-lived, foundational infrastructure components that form the platform backbone
@@ -161,7 +164,10 @@ Deployment Script → Terraform Apply → Capture Outputs → CloudFormation Dep
 ---
 ### High-level AWS Architecture
 
-<figure>
-  <img src="assets/AWS_DevSecOps_Hybrid_CICD_Platform_Architecture.png" alt="AWS Platform Architecture">
-  <em>Figure 2: High-level AWS DevSecOps Platform Architecture - Complete Software Factory Overview</em>
-</figure>
+<div align="center">
+
+![AWS Platform Architecture](./assets/AWS_DevSecOps_Hybrid_CICD_Platform_Architecture.png)
+
+*Figure 2: High-level AWS DevSecOps Platform Architecture - Complete Software Factory Overview*
+
+</div>
