@@ -148,12 +148,12 @@ This platform implements a *strategic separation of Infrastructure as Code respo
 
 **Integration Architecture:**
 ```
-Deployment Script → Terraform Apply → Capture Outputs → CloudFormation Deploy
-        ↓                ↓                   ↓                   ↓
-   Script Logic     Infrastructure    VPC ID, Subnets    Pipeline Resources
-   Orchestration    Provisioning      Security Groups,    with References
-                                      ECS Clusters, 
-                                    Task definitions ...
+          Deployment Script → Terraform Apply → Capture Outputs → CloudFormation Deploy
+                  ↓                ↓                   ↓                   ↓
+            Script Logic     Infrastructure    VPC ID, Subnets    Pipeline Resources
+            Orchestration    Provisioning      Security Groups,    with References
+                                                ECS Clusters, 
+                                              Task definitions ...
 ```
 
 - **Phase 1**: Bash/PowerShell scripts execute Terraform deployment and wait for completion
