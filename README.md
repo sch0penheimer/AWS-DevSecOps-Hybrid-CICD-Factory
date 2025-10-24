@@ -168,6 +168,8 @@ Deployment Script → Terraform Apply → Capture Outputs → CloudFormation Dep
 
 ![AWS Platform Architecture](./assets/AWS_DevSecOps_Hybrid_CICD_Platform_Architecture.png)
 
-*Figure 2: High-level AWS DevSecOps Platform Architecture - Complete Software Factory Overview*
+*Figure 2: High-level AWS DevSecOps Platform Architecture - Complete Software Factory Overview
+
+(Click for a better full-screen view)*
 
 </div>
