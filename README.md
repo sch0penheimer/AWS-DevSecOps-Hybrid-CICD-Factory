@@ -168,8 +168,8 @@ This platform implements a *strategic separation of Infrastructure as Code respo
 
 ![AWS Platform Architecture](./assets/AWS_DevSecOps_Hybrid_CICD_Platform_Architecture.png)
 
-*Figure 2: High-level AWS DevSecOps Platform Architecture - Complete Software Factory Overview
+*Figure 2: High-level AWS DevSecOps Platform Architecture - Complete Software Factory Overview*
 
-(Click for a better full-screen view)*
+*(Click for a better full-screen view)*
 
 </div>
