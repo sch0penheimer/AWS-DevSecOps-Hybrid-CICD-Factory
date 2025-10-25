@@ -320,7 +320,7 @@ This implementation uses ECS with EC2-backed container instances (not AWS Fargat
 ### ECS Clusters & Auto Scaling
 
 - **Staging Cluster**: Private subnet (us-east-1a). ASG: min `1`, desired `1`, max `2` (t2.micro for cost/Free Tier).
-- **Production Cluster**: Cross-AZ private subnets. ASG: min `1`, desired `2`, max `2` (t2.micro by default).
+- **Production Cluster**: Cross-AZ private subnets. ASG: min `0`, desired `0`, max `2` (t2.micro by default), as these instances are meant to be **EPHEMERAL**, and called only by the associated DAST stage and die afterwards.
 - **EC2 Launch Templates**: <ins>ECS-Optimized AMI</ins>, IAM instance profile, user-data, security groups, and CloudWatch/log agents for consistent hosts.
 - **Scaling & Resilience**: Use target-tracking (CPU/memory) or step policies; enable ECS draining + ASG lifecycle hooks and health checks for graceful replacement.
 - **Deployment Strategy**: Rolling updates (ASG + ECS) to maintain availability during instance replacements.
