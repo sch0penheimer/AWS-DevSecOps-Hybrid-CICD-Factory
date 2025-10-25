@@ -1,6 +1,6 @@
 
 ---
-> **Last Updated:** October 10th, 2025  
+> **Last Updated:** October 25th, 2025
 > **Author:** [Haitam Bidiouane](https://github.com/sch0penheimer)
 ---
 
@@ -281,7 +281,7 @@ The Public Resources Architecture manages internet-facing infrastructure compone
 - **Internet Gateway Integration**: Direct routing from ALB to IGW for inbound HTTP/HTTPS traffic from internet clients
 - **Security Group Configuration**: ALB security group permits inbound traffic on ports 80 and 443 from `0.0.0.0/0` while restricting all other protocols
 
-**`Custom NAT Instance Strategy:`** $ECS\_CONTROL\_PLANE\_DNS\_NAME$ : The sole operational reason NAT instances are needed is to allow ECS agent and EC2-backed container instances in private subnets to reach the **regional ECS control plane**. You can avoid public internet egress by using <ins>VPC endpoints</ins>, but those endpoints typically incur additional charges and are not covered by the AWS Free Tier. For Free Tier–compatible, low-cost evaluations I therefore managed to setup outbound Internet access via **my own lightweight custom NAT EC2 instances** (one per AZ) instead of paid VPC endpoint alternatives.
+**`Custom NAT Instance Strategy:`** **ECS_CONTROL_PLANE_DNS_NAME** : The sole operational reason NAT instances are needed is to allow ECS agent and EC2-backed container instances in private subnets to reach the **regional ECS control plane**. You can avoid public internet egress by using <ins>VPC endpoints</ins>, but those endpoints typically incur additional charges and are not covered by the AWS Free Tier. For Free Tier–compatible, low-cost evaluations I therefore managed to setup outbound Internet access via **my own lightweight custom NAT EC2 instances** (one per AZ) instead of paid VPC endpoint alternatives.
 - **Cost Optimization**: Deployed in each public subnet as `t2.micro` instances to maintain **AWS Free Tier eligibility** instead of using AWS Managed NAT Gateways (`$45/month` per gateway)
 - **High Availability**: One NAT instance per availability zone providing redundant egress paths for private subnet resources
 - **Instance Configuration**: Amazon Linux 2 AMI with custom User Data script handling IP forwarding, iptables rules, and source/destination check disabling
@@ -319,8 +319,8 @@ The Private Resources Architecture hosts the core application workloads within i
 This implementation uses ECS with EC2-backed container instances (not AWS Fargate). Choosing ECS EC2-based workloads provides an in‑depth infrastructural vision and full host-level control (AMIs, kernel tuning, custom NAT, networking, IAM roles, and node-level observability) needed for security hardening and operational transparency. It also reduces costs and preserves **AWS Free Tier eligibility** (t2.micro instances for low‑capacity ASGs and NAT) versus Fargate’s per-task pricing, which helps keep the factory affordable for evaluation and small-scale deployments.
 ### ECS Clusters & Auto Scaling
 
-- **Staging Cluster**: Private subnet (us-east-1a). ASG: min `1`, desired `1`, max `2` (t2.micro for cost/Free Tier).
-- **Production Cluster**: Cross-AZ private subnets. ASG: min `0`, desired `0`, max `2` (t2.micro by default), as these instances are meant to be **EPHEMERAL**, and called only by the associated DAST stage and die afterwards.
+- **Staging Cluster**: Private subnet (us-east-1a). ASG: min `0`, desired `0`, max `2` (t2.micro for cost/Free Tier), as these staging instances are meant to be **EPHEMERAL**, and called only by the associated DAST stage and die afterwards.
+- **Production Cluster**: Cross-AZ private subnets. ASG: min `1`, desired `1`, max `2` (t2.micro by default).
 - **EC2 Launch Templates**: <ins>ECS-Optimized AMI</ins>, IAM instance profile, user-data, security groups, and CloudWatch/log agents for consistent hosts.
 - **Scaling & Resilience**: Use target-tracking (CPU/memory) or step policies; enable ECS draining + ASG lifecycle hooks and health checks for graceful replacement.
 - **Deployment Strategy**: Rolling updates (ASG + ECS) to maintain availability during instance replacements.
