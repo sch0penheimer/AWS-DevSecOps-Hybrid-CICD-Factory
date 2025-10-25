@@ -26,7 +26,7 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
   - [Private Resources Architecture](#private-resources-architecture)
 - [AWS CloudFormation CI/CD Sub-Architecture](#cloudformation-ci/cd-sub-architecture)
   - [CodePipeline Architecture](#codepipeline-architecture)
-  - [Pipeline Integration & Workflow](#pipeline-integration--workflow)
+  - [Pipeline Integration & Complete CI/CD Workflow](#pipeline-integration--complete-cicd-workflow)
 
 ### [Section III: Technical Implementation Details & Operations](#section-iii-technical-implementation-details--operations)
 - [VPC Internal Networking](#vpc-internal-networking)
@@ -327,7 +327,7 @@ This implementation uses ECS with EC2-backed container instances (not AWS Fargat
 - **Operational Note**: Tune instance types and ASG bounds per workload; keep t2.micro for evaluation/Free Tier compatibility.
 
 **`Database Layer Considerations:`**
-For this implementation, **no database layer is deployed** to maintain simplicity as the factory will be tested with applications using mock JSON data. However, the architecture supports database integration through the following pattern:
+For this implementation, **no database layer is deployed** to maintain simplicity as the factory will be tested with a lightweiht yet kind of vulnerable FastAPI application that uses mock JSON data. However, the architecture can support easy database integration through the following pattern:
 - **Database Subnets**: Additional private subnets (`10.0.5.0/24`, `10.0.6.0/24`) reserved for RDS deployment across availability zones
 - **Security Group Configuration**: Database security groups configured to accept connections only from ECS cluster security groups on database-specific ports
 - **Read Replica Strategy**: Cross-AZ read replicas in the second availability zone for high availability and read scaling
@@ -346,6 +346,40 @@ The private subnet architecture ensures application workloads remain completely 
 
 </div>
 
+The AWS CloudFormation CI/CD Sub-Architecture manages the pipeline orchestration layer of the DevSecOps Factory, handling AWS-native service integration and automated software delivery workflows. This layer implements <ins>**pipeline-as-code patterns**</ins> that provide secure, scalable CI/CD capabilities while maintaining seamless integration with the Terraform-managed infrastructure foundation.
+
+**`Pipeline State Management:`**
+- **CloudFormation Stack Management**: Declarative stack definitions with built-in drift detection and rollback capabilities for pipeline resource lifecycle
+- **Parameter Integration**: Dynamic parameter injection from Terraform outputs enabling cross-IaC resource referencing and configuration
+- **Resource Tagging**: Consistent tagging strategy for pipeline resources aligned with infrastructure layer for unified cost tracking and governance
+
+**| <ins>Source Control Integration</ins>:**
+- **AWS CodeConnections (ex-AWS CodeStar Connections)**: Secure remote git repo provider (GitLab, GitHub, Bitbucket, ...) integration providing webhook-based source code monitoring and automated pipeline triggering
+- **Branch Strategy**: Multi-branch support enabling feature branch deployments and environment-specific pipeline execution
+- **Source Artifact Management**: Automated source code packaging and versioning for downstream pipeline stage consumption
+
+**| <ins>Build & Security Pipeline</ins>:**
+- **AWS CodeBuild Projects**: Containerized build environments executing multi-stage security scanning including SAST, SCA, DAST, and compliance validation
+- **Security by Design**: Embedded security tools (Snyk, OWASP ZAP, git-secrets, Clair) providing comprehensive vulnerability assessment across the software supply chain
+- **Artifact Generation**: Container image building, security scanning, and artifact packaging for deployment to target environments
+- **Secrets Management**: All sensitive values (secrets, API keys, endpoint URLs, tokens, etc.) are stored as SecureString parameters in <ins>AWS SSM Parameter Store</ins>. Pipeline and CodeBuild jobs access them via least‑privilege IAM roles and explicit parameter ARNs; no credentials are hardcoded in source or buildspecs.
+
+
+
+**| <ins>Deployment Orchestration</ins>:**
+- **Multi-Environment Deployment**: Automated <ins>staging</ins> & <ins>production</ins> deployment workflows with environment-specific configuration management
+- **Blue/Green Strategy**: Zero-downtime deployment implementation through ECS service coordination and ALB target group management
+- **Approval Gate**: Manual approval controls for production deployments ensuring human oversight for critical environment changes
+
+**| <ins>Monitoring & Notifications</ins>:**
+- **AWS EventBridge Integration**: Event-driven pipeline monitoring and automated incident response workflows
+- **AWS CloudWatch Integration**: Comprehensive pipeline metrics, logging, and alerting across all stages and environments
+- **AWS SNS Multi-topic Notifications**: Multi-topic notification distribution for pipeline status, security findings, and operational alerts
+
+<br/>
+
+Next, I will dive deeper into each section (***<ins>AWS CodePipeline Architecture</ins>*** & ***<ins>Pipeline Integration Workflow</ins>***)
+
 ### CodePipeline Architecture
 <div align="center">
 
@@ -357,13 +391,100 @@ The private subnet architecture ensures application workloads remain completely 
 
 </div>
 
-### Pipeline Integration & Workflow
+The CodePipeline Architecture implements a <ins>**multi-stage security-first automated delivery pipeline**</ins> that orchestrates the complete software delivery lifecycle from source code commit to production deployment. This pipeline integrates comprehensive security scanning, quality assurance, and deployment automation while maintaining strict separation between staging and production environments.
+
+**`Pipeline Stage Configuration:`**
+- **Source Stage**: AWS CodeConnections integration for automated source code retrieval from GitHub repository with webhook-triggered pipeline execution
+- **Build Stage**: Five parallel CodeBuild projects executing comprehensive security scanning and artifact generation
+- **Deploy-Staging Stage**: Automated deployment to ephemeral staging environment ECS cluster for integration testing and DAST validation
+- **Approval Stage**: Manual approval gate requiring human authorization before production deployment for critical environment protection
+- **Deploy-Production Stage**: Blue/green deployment to production ECS cluster with zero-downtime service updates and traffic switching
+
+**`AWS CodeBuild Project Architecture:`**
+- **Secrets-Scanning Project**: Dedicated build environment executing git-secrets for credential leak detection and sensitive data exposure prevention, with code artifact generation and S3 archiving
+- **SAST-Snyk Project**: Static Application Security Testing environment using Snyk for code vulnerability analysis combined with Docker image building and ECR repository pushing
+- **SCA-Clair Project**: Software Composition Analysis using Clair for dependency vulnerability and image scanning assessment with automated staging environment deployment coordination
+- **DAST-OWASP-ZAP Project**: Dynamic Application Security Testing environment executing OWASP ZAP penetration testing against live staging application endpoints with automated approval triggering on successful validation
+- **Production-BlueGreen Project**: Blue/green deployment orchestration managing ECS service updates, ALB target group switching, and zero-downtime production releases
+
+Each CodeBuild execution provisions ephemeral, fresh, isolated container environments, ensuring a clean build state and preventing artifact contamination between pipeline runs.
+
+I will tackle in the next section the whole CI/CD workflow and the pipeline’s integration with all the related services in the CI/CD process.
+
+### Pipeline Integration & Complete CI/CD Workflow
 <div align="center">
 
 ![](./assets/Pseudo_Architectures/CF-RESOURCES_cicd.png)
 
-*Figure 9: Pipeline Integration & Workflow - End-to-end CI/CD workflow with security gates, artifact management & multi-environment deployment orchestration*
+*Figure 9: Pipeline Integration & CI/CD Workflow - End-to-end CI/CD workflow with security gates, artifact management & multi-environment deployment orchestration*
 
 ***(Click on the architecture for a better full-screen view)***
 
 </div>
+
+The full CI/CD Workflow implements a <ins>**comprehensive end-to-end DevSecOps automation**</ins> that orchestrates secure software delivery through integrated security scanning, artifact management, centralized monitoring, and automated notification systems. This workflow ensures security compliance at every stage while maintaining operational transparency and incident response capabilities.
+
+**`End-to-End Sequential Workflow:`**
+
+***<ins>Phase 1: Source Code Trigger & Artifact Preparation</ins>***
+
+1. Developer commits code to the remote repository triggering AWS CodeConnections webhook
+2. CodePipeline automatically initiated with source artifact packaging and S3 storage
+3. Pipeline execution metadata (commit SHA, timestamp, branch) captured for traceability
+
+***<ins>Phase 2: SAST Scanning & Build Process</ins>***
+
+4. Secrets-Scanning Project executes git-secrets analysis for credential exposure detection with immediate pipeline termination on any secret detection
+5. SAST-Snyk Project performs static code analysis and vulnerability assessment:
+   - **Low/Medium Vulnerabilities**: Docker container image built and pushed to ECR repository
+   - **High/Critical Vulnerabilities**: Docker container image NOT built NOR pushed to ECR repository  
+   - **Lambda Function Triggered**: Security findings from Snyk analysis sent to Lambda Normalization Function regardless of severity level
+6. Lambda Normalization Function triggered by Snyk security scan completion. It  archives results to S3 artifact store with standardized scale & naming conventions, transformes findings to AWS Security Hub ASFF format with severity classification, and publishes normalized findings to AWS Security Hub for centralized visibility
+7. Pipeline continues to next stage regardless of Snyk findings severity
+
+***<ins>Phase 4: Container Image Security Analysis & Staging Decision</ins>***
+
+8. SCA-Clair Project pulls container image from ECR and performs comprehensive dependency vulnerability scanning
+    - **Low/Medium Vulnerabilities**: Staging environment deployment initiated
+    - **High/Critical Vulnerabilities**: Pipeline stage fails and terminates
+    - **Lambda Function Triggered**: Clair security findings sent to Lambda Normalization Function regardless of outcome
+9. Lambda Normalization Function processes Clair findings and publishes to Security Hub (same process as Snyk stage)
+10. If Clair vulnerabilities are Low/Medium: ECS staging cluster Auto Scaling Group scales from 0 to 1 instance
+11. ECS task definition updated with validated container image from ECR repository
+12. Staging application deployed and health checks validated before DAST execution
+
+***<ins>Phase 5: DAST Pentesting</ins>***
+
+13. DAST-OWASP-ZAP Project executes comprehensive **pentesting** against live staging endpoints:
+    - **Low/Medium Vulnerabilities**: Manual approval gate triggered via SNS topic notification
+    - **High/Critical Vulnerabilities**: Pipeline stage fails and terminates
+    - **Lambda Function Triggered**: OWASP ZAP findings sent to Lambda Normalization Function regardless of outcome
+14. Lambda Normalization Function processes DAST results and publishes to Security Hub (same process as Snyk or Clair stages)
+15. Staging ECS cluster automatically scales down to 0 instances
+
+***<ins>Phase 6: Security Gate Validation & Manual Approval (Conditional)</ins>***
+
+16. Security team reviews consolidated security findings in Security Hub dashboard if SNS manual approval notification is sent by the previous stage
+17. Manual approval gate activated requiring human authorization for production deployment
+
+***<ins>Phase 7: Production Blue/Green Deployment (Approval Required)</ins>***
+
+18. Upon Manual Approval, Production-BlueGreen Project execution triggered
+19. New ECS task definition created with security-validated container image (Blue environment)
+20. Blue environment health checks validated before traffic switching
+21. ALB target group gradually switched from Green to Blue environment
+22. Zero-downtime deployment completed with old Green environment termination
+
+***<ins>Phase 8: Post-Deployment Monitoring & Cleanup</ins>***
+
+23. CloudWatch metrics and EventBridge events monitor deployment success
+
+***<ins>Phase 9: Continuous Monitoring & Feedback Loop</ins>***
+
+24. RASP tool (CNCF Falco) provides continuous runtime security monitoring for production workloads, especially the **<ins>Docker container runtime</ins>**
+25. Security Hub maintains historical tracking of all vulnerability findings across pipeline executions and RASP.
+
+
+This sequential workflow ensures comprehensive security validation at every stage while maintaining operational efficiency and cost optimization through ephemeral staging environments and automated cleanup processes.
+
+The Factory's CI/CD Workflow creates a comprehensive DevSecOps automation that ensures enterprise-grade software delivery.
