@@ -188,6 +188,34 @@ The next chapter provides comprehensive technical deep-dives into each architect
 
 </div>
 
+The Terraform Infrastructure Sub-Architecture establishes the foundational layer of the DevSecOps Factory, managing long-lived infrastructure components through declarative configuration. This layer implements a <ins>**network-centric design**</ins> that provides secure, scalable infrastructure primitives for containerized workloads while maintaining strict separation between public and private resources.
+
+**`Infrastructure State Management:`**
+- **Terraform State Backend**: Remote state storage with locking mechanisms for concurrent execution prevention
+- **Output Variables**: Structured data export for CloudFormation integration including VPC IDs, subnet identifiers, and security group references
+- **Resource Tagging**: Comprehensive tagging strategy for cost allocation, environment identification, and compliance tracking
+
+**| <ins>Network Foundation</ins>:**
+- **Custom VPC**: Isolated network environment with `/16` CIDR block providing 65,531 (65,536 - 5 IPs reserved by AWS) available IP addresses across multiple Availability Zones
+- **Subnet Segmentation**: Strategic separation between public subnets for internet-facing resources and private subnets for application workloads
+- **Route Table Management**: Dedicated routing configurations for public internet access and private subnet egress through custom NAT instances
+
+**| <ins>Compute Infrastructure</ins>:**
+- **ECS Cluster Provisioning**: Separate staging and production clusters with EC2 launch configurations optimized for containerized workloads
+- **Auto Scaling Groups**: Dynamic capacity management with configurable scaling policies based on CPU utilization and memory consumption
+- **Security Group Configuration**: Network-level access control with least-privilege rules for inter-service communication
+
+**| <ins>Load Balancing & Traffic Management</ins>:**
+- **Application Load Balancer**: Layer 7 load balancing with SSL termination and target group management for blue/green deployments
+- **Target Group Configuration**: Health check definitions and traffic routing rules for ECS service integration
+- **Custom NAT Instance Strategy**: Cost-optimized egress solution using EC2 instances instead of managed NAT gateways
+
+<br/>
+
+Next, I will dive deeper into each section ***(VPC, Public & Private scopes)**
+
+
+---
 ### VPC Architecture
 <div align="center">
 
@@ -199,6 +227,38 @@ The next chapter provides comprehensive technical deep-dives into each architect
 
 </div>
 
+The VPC Architecture implements a <ins>**multi-tier network design**</ins> that provides secure isolation, high availability, and controlled traffic flow for the DevSecOps Factory. The network foundation establishes clear boundaries between public-facing and private resources while enabling secure communication patterns across availability zones.
+
+**`Network Topology & CIDR Design:`**
+- **VPC CIDR Block**: `/16` network (`10.0.0.0/16`) providing 65,531 (65,536 - 5 IPs reserved by AWS) usable IP addresses for comprehensive resource allocation
+- **Multi-AZ Distribution**: Resources distributed across `us-east-1a` and `us-east-1b` availability zones for fault tolerance and high availability
+- **Subnet Allocation Strategy**: CIDR space partitioned to support both current deployment requirements and future scaling needs
+
+**`Subnet Segmentation Strategy:`**
+- **Public Subnets**: Internet-accessible subnets (`10.0.1.0/24`, `10.0.2.0/24`) hosting load balancers and NAT instances.
+- **Private Subnets**: Isolated subnets (`10.0.3.0/24`, `10.0.4.0/24`) containing ECS clusters, application workloads, and sensitive resources
+- **Reserved Address Space**: Additional CIDR ranges reserved for database subnets, cache layers, and future service expansion
+
+**`Routing Architecture:`**
+- **Internet Gateway**: Single IGW providing **EGRESS** internet connectivity for public subnet resources
+- **Public Route Tables**: Direct routing to Internet Gateway for public subnet traffic with explicit 0.0.0.0/0 routes
+- **Private Route Tables**: Custom routing through NAT instances for private subnet egress while maintaining inbound isolation
+- **Local Route Propagation**: Automatic VPC-local routing for inter-subnet communication within the `10.0.0.0/16` space
+
+**`Security & Access Control:`**
+- **Security Groups**: Instance-level stateful firewalls rules are established to EVERYTHING enabling precise traffic control between application tiers and **LEAST PRIVILEGE ACCESS**
+
+**`DNS & Name Resolution:`**
+Only the Application Load Balancer (ALB) exposes a ***<ins>regional DNS name</ins>*** for *inbound internet access*. The ALB is the single public entry point; backend ECS/EC2 instances and other resources remain in private subnets without public IPs and receive traffic only from the ALB.
+
+- The ALB publishes a regional DNS name (for example: my-alb-xxxxx.us-east-1.elb.amazonaws.com). **DO NOT RELY ON ALB IP ADDRESSES, as they are dynamic and subject to change**.
+- Enforce security by allowing inbound HTTP/HTTPS only on the ALB security group; backend security groups accept traffic only from the ALB SG. Private resources use NAT instances for outbound internet access, not public-facing IPs.
+
+This pattern centralizes inbound access control, simplifies TLS management, and keeps application workloads isolated behind the load balancer.
+
+The VPC architecture establishes the network foundation that enables the **Public Resources Architecture** to provide internet-facing services and egress capabilities, while the **Private Resources Architecture** hosts secure application workloads with controlled network access patterns.
+
+---
 ### Public Resources Architecture
 <div align="center">
 
@@ -210,6 +270,33 @@ The next chapter provides comprehensive technical deep-dives into each architect
 
 </div>
 
+The Public Resources Architecture manages internet-facing infrastructure components within strategically segmented public subnets, providing controlled ingress and egress capabilities while maintaining cost optimization through custom NAT instance implementations. This layer serves as the <ins>**network perimeter**</ins> that bridges external internet connectivity with internal private resources.
+
+- **Subnet `A` (us-east-1a)**: `10.0.1.0/24` providing 251 (256 - 5 IPs reserved by AWS) usable IP addresses for high-availability resource deployment
+- **Subnet `B` (us-east-1b)**: `10.0.2.0/24` providing 251 (256 - 5 IPs reserved by AWS) usable IP addresses for cross-AZ redundancy and load distribution
+- **Reserved IP Space**: Each `/24` subnet reserves sufficient addressing for future expansion including bastion hosts, additional NAT instances, and potential migration to AWS Managed NAT Gateways
+
+- **Multi-AZ Deployment**: ALB automatically provisions network interfaces across both public subnets for high availability and traffic distribution
+- **Cross-Zone Load Balancing**: Enabled by default to ensure even traffic distribution across availability zones regardless of target distribution
+- **Internet Gateway Integration**: Direct routing from ALB to IGW for inbound HTTP/HTTPS traffic from internet clients
+- **Security Group Configuration**: ALB security group permits inbound traffic on ports 80 and 443 from `0.0.0.0/0` while restricting all other protocols
+
+**`Custom NAT Instance Strategy:`** $ECS\_CONTROL\_PLANE\_DNS\_NAME$ : The sole operational reason NAT instances are needed is to allow ECS agent and EC2-backed container instances in private subnets to reach the **regional ECS control plane**. You can avoid public internet egress by using <ins>VPC endpoints</ins>, but those endpoints typically incur additional charges and are not covered by the AWS Free Tier. For Free Tier–compatible, low-cost evaluations I therefore managed to setup outbound Internet access via **my own lightweight custom NAT EC2 instances** (one per AZ) instead of paid VPC endpoint alternatives.
+- **Cost Optimization**: Deployed in each public subnet as `t2.micro` instances to maintain **AWS Free Tier eligibility** instead of using AWS Managed NAT Gateways (`$45/month` per gateway)
+- **High Availability**: One NAT instance per availability zone providing redundant egress paths for private subnet resources
+- **Instance Configuration**: Amazon Linux 2 AMI with custom User Data script handling IP forwarding, iptables rules, and source/destination check disabling
+
+**`Network Routing & Traffic Flow:`**
+- **Ingress Path**: Internet → IGW → ALB (Public Subnets) → Target Groups (Private Subnets)
+- **Egress Path**: Private Resources → NAT Instances (Public Subnets) → IGW → Internet
+- **Route Table Association**: Public subnets use route tables with `0.0.0.0/0` pointing to Internet Gateway for direct internet connectivity
+
+**`Security & Access Control:`**
+- **NAT Instance Security Groups**: Restrictive ingress rules allowing only traffic from private subnet CIDR ranges while permitting outbound internet access
+- **Source/Destination Check**: Disabled on NAT instances to enable packet forwarding between private subnets and internet
+
+The custom NAT instance implementation leverages a **User Data script** available in the codebase that configures the EC2 instances for NAT functionality, including network interface configuration, routing table setup, and traffic forwarding rules. Detailed technical implementation of these NAT instances will be covered in the Technical Implementation section.
+
 ### Private Resources Architecture
 <div align="center">
 
@@ -220,6 +307,33 @@ The next chapter provides comprehensive technical deep-dives into each architect
 ***(Click on the architecture for a better full-screen view)***
 
 </div>
+
+The Private Resources Architecture hosts the core application workloads within isolated private subnets, providing secure compute environments for containerized applications while maintaining strict network isolation from internet access. This layer implements <ins>**defense-in-depth security**</ins> through subnet isolation, security group controls, and NAT-based egress routing.
+
+**`Private Subnet Distribution & CIDR Allocation:`**
+- **Subnet `C` (us-east-1a)**: `10.0.3.0/24` providing 251 usable IP addresses for staging environment ECS cluster and associated resources
+- **Subnet `D` (us-east-1b)**: `10.0.4.0/24` providing 251 usable IP addresses for production environment ECS cluster and cross-AZ redundancy
+- **Reserved IP Space**: Each `/24` subnet reserves addressing capacity for database subnets, cache layers, and additional compute resources
+
+**`ECS Clusters Architecture:`** 
+This implementation uses ECS with EC2-backed container instances (not AWS Fargate). Choosing ECS EC2-based workloads provides an in‑depth infrastructural vision and full host-level control (AMIs, kernel tuning, custom NAT, networking, IAM roles, and node-level observability) needed for security hardening and operational transparency. It also reduces costs and preserves **AWS Free Tier eligibility** (t2.micro instances for low‑capacity ASGs and NAT) versus Fargate’s per-task pricing, which helps keep the factory affordable for evaluation and small-scale deployments.
+### ECS Clusters & Auto Scaling
+
+- **Staging Cluster**: Private subnet (us-east-1a). ASG: min `1`, desired `1`, max `2` (t2.micro for cost/Free Tier).
+- **Production Cluster**: Cross-AZ private subnets. ASG: min `1`, desired `2`, max `2` (t2.micro by default).
+- **EC2 Launch Templates**: <ins>ECS-Optimized AMI</ins>, IAM instance profile, user-data, security groups, and CloudWatch/log agents for consistent hosts.
+- **Scaling & Resilience**: Use target-tracking (CPU/memory) or step policies; enable ECS draining + ASG lifecycle hooks and health checks for graceful replacement.
+- **Deployment Strategy**: Rolling updates (ASG + ECS) to maintain availability during instance replacements.
+- **Operational Note**: Tune instance types and ASG bounds per workload; keep t2.micro for evaluation/Free Tier compatibility.
+
+**`Database Layer Considerations:`**
+For this implementation, **no database layer is deployed** to maintain simplicity as the factory will be tested with applications using mock JSON data. However, the architecture supports database integration through the following pattern:
+- **Database Subnets**: Additional private subnets (`10.0.5.0/24`, `10.0.6.0/24`) reserved for RDS deployment across availability zones
+- **Security Group Configuration**: Database security groups configured to accept connections only from ECS cluster security groups on database-specific ports
+- **Read Replica Strategy**: Cross-AZ read replicas in the second availability zone for high availability and read scaling
+- **Backup & Recovery**: Automated backup strategies with point-in-time recovery capabilities integrated with the existing monitoring infrastructure (+++ $$$)
+
+The private subnet architecture ensures application workloads remain completely isolated from direct internet access while maintaining necessary connectivity for container orchestration, monitoring, and automated deployment processes through the CI/CD pipeline.
 
 ## AWS CloudFormation CI/CD Sub-Architecture
 <div align="center">
