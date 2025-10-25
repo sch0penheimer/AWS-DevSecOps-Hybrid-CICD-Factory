@@ -176,3 +176,80 @@ The next chapter provides comprehensive technical deep-dives into each architect
 
 ---
 
+# Section II: Architectural Deep Dive
+## Terraform Infrastructure Sub-Architecture
+<div align="center">
+
+![](./assets/Pseudo_Architectures/TF-INFRA.png)
+
+*Figure 3: Terraform Infrastructure Sub-Architecture - Complete foundational infrastructure layer managed by Terraform*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
+
+### VPC Architecture
+<div align="center">
+
+![](./assets/Pseudo_Architectures/TF-INFRA_VPC.png)
+
+*Figure 4: VPC Network Architecture - Multi-AZ VPC design with strategic subnet segmentation and routing configuration*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
+
+### Public Resources Architecture
+<div align="center">
+
+![](./assets/Pseudo_Architectures/TF-INFRA_Public-Subnets.png)
+
+*Figure 5: Public Subnet Resources Architecture - Internet-facing components including ALB capacities and Custom NAT instances*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
+
+### Private Resources Architecture
+<div align="center">
+
+![](./assets/Pseudo_Architectures/TF-INFRA_Private_Subnets.png)
+
+*Figure 6: Private Subnet Resources Architecture - Internal ECS clusters and Associated ASGs (Auto-Scaling Groups)*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
+
+## AWS CloudFormation CI/CD Sub-Architecture
+<div align="center">
+
+![](./assets/Pseudo_Architectures/CF-RESOURCES.png)
+
+*Figure 7: CloudFormation CI/CD Sub-Architecture - Complete pipeline infrastructure and AWS-native service orchestration*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
+
+### CodePipeline Architecture
+<div align="center">
+
+![](./assets/Pseudo_Architectures/CF-RESOURCES_codePipeline.png)
+
+*Figure 8: CodePipeline Architecture - Multi-stage pipeline with integrated security scanning and deployment automation*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
+
+### Pipeline Integration & Workflow
+<div align="center">
+
+![](./assets/Pseudo_Architectures/CF-RESOURCES_cicd.png)
+
+*Figure 9: Pipeline Integration & Workflow - End-to-end CI/CD workflow with security gates, artifact management & multi-environment deployment orchestration*
+
+***(Click on the architecture for a better full-screen view)***
+
+</div>
