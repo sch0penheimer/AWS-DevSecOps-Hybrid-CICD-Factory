@@ -12,6 +12,12 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 > [!NOTE]
 > Architected, implemented, and fully documented by **Haitam Bidiouane** (***@sch0penheimer***).
 
+<div align="center">
+
+![](./doc/Metadoc/GitHub-Intro-Banner.png)
+
+</div>
+
 ## Table of Contents
 
 ### [Section I: Factory Architecture & Infrastructure Overview](#section-i-platform-architecture--infrastructure-overview)
