@@ -88,7 +88,7 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 This AWS DevSecOps Hybrid CI/CD Factory represents a <ins>**DevSecOps Software Factory**</ins>, an evolved approach to software delivery that extends traditional DevOps practices by embedding security controls throughout the entire software development lifecycle. The factory concept provides a standardized, automated environment for building, testing, and deploying software with security as a first-class citizen rather than an afterthought.
 
 - **Development**: Secure coding practices integrated from initial commit with automated pre-commit hooks and static analysis
-- **Security**: Continuous security scanning through SAST, SCA, DAST, and RASP tools embedded in pipeline stages
+- **Security**: Continuous security scanning through SAST, SCA, DAST, and RASP tools embedded in pipeline stages & production environment
 - **Operations**: Infrastructure security hardening and runtime monitoring with automated incident response
 
 ---
@@ -165,7 +165,7 @@ The platform uses distinct **ECS Cluster Architecture** by maintaining separate 
 The factory relies on **AWS CodePipeline** as a multi‑stage orchestrator to integrate source control, coordinate builds, perform security scans, and automate deployments; **AWS CodeBuild** supplies isolated, containerized build environments for compiling code, executing security and compliance analyses, and producing artifacts; and centralized **S3 Artifact Management** handles artifact storage with versioning and lifecycle policies to manage pipeline dependencies.
 
 **4. `Security Integration Layer:`**
-**Multi-Stage Security Scanning** is implemented throughout the CI process: SAST, SCA, DAST, and RASP tools are embedded across pipeline stages to continuously detect code, dependency, runtime, and application-layer risks; **AWS Security Hub** centralizes findings while a custom Lambda function normalizes and correlates alerts for unified visibility and automated response;
+**Multi-Stage Security Scanning** is implemented throughout the CI process: SAST, SCA, DAST, and RASP tools are embedded across pipeline stages & the prod environment to continuously detect code, dependency, runtime, and application-layer risks; **AWS Security Hub** centralizes findings while a custom Lambda function normalizes and correlates alerts for unified visibility and automated response;
 
 **5. `Event-Driven Operations:`**
 The platform uses **AWS EventBridge** for flexible event routing and automated incident‑response workflows, **CloudWatch Integration** for centralized monitoring, logging, and alerting across all components, and **SNS Topics** to distribute operational and security alerts across multiple channels.
