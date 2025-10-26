@@ -499,7 +499,128 @@ The Factory's CI/CD Workflow creates a comprehensive DevSecOps automation that e
 # Section III: Technical Implementation Details & Operations
 
 ## Modular Terraform Approach
+
+<div align="center">
+
+![Terraform Modular Structure](./assets/terraform_modular_folder_structure.png)
+
+*Figure 10: Terraform Modular Folder Structure - Organized module-based infrastructure provisioning*
+
+</div>
+
+The Terraform implementation follows a <ins>**modular architecture pattern**</ins> that promotes code reusability, maintainability, and separation of concerns across different infrastructure domains. This approach enables independent module development, testing, and deployment while maintaining consistent resource provisioning and configuration management.
+
+The Terraform codebase containes a **root module** that orchestrates composition and cross‑module data flow among **3 specialized modules** : <ins>***`Network`***</ins>, <ins>***`Compute`***</ins> and <ins>***`Storage`***</ins>, with each module exposing structured outputs consumed by others via explicit variable passing and output‑to‑input mappings, since each module declares its own **VARIABLES**, **MAIN**, and **OUTPUTS** files.
+
+The modular approach enables independent infrastructure layer management while maintaining integration points necessary for the hybrid IaC strategy with CloudFormation pipeline resources.
+
 ### Global Variables & Outputs
+The root Terraform configuration establishes <ins>**centralized variable management**</ins> and <ins>global output coordination</ins> across all modules, providing consistent configuration and enabling seamless cross-module data flow. The root level manages global settings, module orchestration, and structured output generation for CloudFormation integration.
+
+**`Root Configuration File`**:
+
+The main configuration file orchestrates module composition and establishes provider configurations:
+
+```hcl
+module "network" {
+  source = "./modules/network"
+  
+  aws_region             = var.aws_region
+  environment           = var.environment
+  project_name          = var.project_name
+  vpc_cidr_block        = var.vpc_cidr_block
+  availability_zones    = var.availability_zones
+}
+
+module "compute" {
+  source = "./modules/compute"
+  
+  environment           = var.environment
+  project_name          = var.project_name
+  vpc_id               = module.network.vpc_id
+  private_subnet_ids   = module.network.private_subnet_ids
+  public_subnet_ids    = module.network.public_subnet_ids
+  alb_security_group_id = module.network.alb_security_group_id
+}
+
+module "storage" {
+  source = "./modules/storage"
+  
+  environment    = var.environment
+  project_name   = var.project_name
+  aws_region     = var.aws_region
+}
+```
+> **Check File**
+
+> [terraform-manifests/main.tf](./terraform-manifests/main.tf) <br/>
+
+**`Global Variable Definitions`**:
+
+Centralized variable management ensures consistent configuration across all modules:
+
+```hcl
+variable "aws_region" {
+
+}
+
+variable "environment" {
+}
+
+...
+```
+> **Check File**
+
+> [terraform-manifests/global_variables.tf](./terraform-manifests/global_variables.tf) <br/>
+
+
+**`Structured Output Generation:`**
+
+Root outputs aggregate module outputs for CloudFormation parameter injection:
+
+```hcl
+#- Networking Outputs -#
+output "vpc_id" {
+  description = "VPC identifier for CloudFormation integration"
+  value       = module.network.vpc_id
+}
+
+output "private_subnet_ids" {
+  description = "Private subnet identifiers for ECS cluster deployment"
+  value       = module.network.private_subnet_ids
+}
+
+output "alb_dns_name" {
+  description = "Application Load Balancer DNS name for application access"
+  value       = module.network.alb_dns_name
+}
+
+#- Compute Infrastructure Outputs -#
+output "ecs_cluster_staging_name" {
+  description = "ECS staging cluster name for pipeline deployment"
+  value       = module.compute.ecs_cluster_staging_name
+}
+
+output "ecs_cluster_production_name" {
+  description = "ECS production cluster name for pipeline deployment"
+  value       = module.compute.ecs_cluster_production_name
+}
+
+output "ecr_repository_uri" {
+  description = "ECR repository URI for container image storage"
+  value       = module.compute.ecr_repository_uri
+}
+
+...
+
+```
+
+> **Check File**
+
+> [terraform-manifests/global_outputs.tf](./terraform-manifests/global_outputs.tf) <br/>
+
+
+The root config module establishes dependency relationships and data flow between modules through explicit output-to-input variable mapping, ensuring proper resource provisioning order and configuration consistency across the entire infrastructure stack.
 
 ### Network Module
 #### Subnetting Strategy & High Availability
