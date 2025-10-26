@@ -1,6 +1,6 @@
 
 ---
-> **Last Updated:** October 25th, 2025
+> **Last Updated:** October 26th, 2025
 >
 > **Author:** [Haitam Bidiouane](https://linkedin.com/in/haitam-bidiouane/)
 ---
@@ -10,7 +10,7 @@
 This project implements a fully automated Hybrid DevSecOps Factory/Platform on AWS, designed to enforce security and compliance at every stage of the software delivery lifecycle, while decoupling <ins>**the CI/CD pipeline and related resources**</ins> from <ins>**the main platform**</ins> that hosts ECS EC2-based containerized application workloads, respectively via AWS CloudFormation and Terraform, hence the "Hybrid" label.
 
 > [!NOTE]
-> Architected, implemented, and fully documented by **Haitam Bidiouane** (***@sch0penheimer***).
+> Architected, implemented, and fully documented by **[Haitam Bidiouane](https://linkedin.com/in/haitam-bidiouane/)** (***@sch0penheimer***).
 
 <div align="center">
 
@@ -74,11 +74,7 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 ### [Section IV: Deployment & Configuration Guide](#section-iv-deployment--configuration-guide)
 - [Deployment Scripts](#deployment-scripts)
 - [Environment Configuration Reference](#environment-configuration-reference)
-- [Complete Deployment Example Overview](#complete-deployment-example-overview)
-
----
-- [License](#license)
-
+- [Fully Documented Deployment Walkthrough](#fully-documented-deployment-walkthrough)
 
 <br/>
 
@@ -824,13 +820,196 @@ The User Data script configures EC2 instances for NAT functionality with IP forw
 The custom NAT implementation provides **high availability** through multi-AZ deployment, **cost optimization** through Free Tier-eligible t2.micro instances, and **security hardening** through restricted security group rules and automated configuration management.
 
 ### Compute Module
+
+The Compute Module implements the containerized application infrastructure with separate staging and production ECS EC2-Based clusters, providing secure, scalable compute environments for application workloads. 
+
+This module manages the complete container orchestration lifecycle from cluster provisioning through task execution and scaling policies.
+
 #### ECS Staging & Production Clusters
+
+The ECS clusters architecture implements **environment-specific isolation** with distinct clusters for staging and production workloads, each optimized for their respective operational requirements and scaling characteristics.
+
+> **Check File**
+
+> [terraform-manifests/compute/main.tf](./terraform-manifests/compute/main.tf)
+
+<br/>
+
+**`Cluster Characteristics:`**
+- **Staging Cluster**: Ephemeral operation with auto-scaling from 0-2 instances, single AZ deployment for cost optimization
+- **Production Cluster**: Persistent operation with 1-3 instances, multi-AZ deployment for high availability
+- **Container Insights**: Enabled on both clusters for comprehensive monitoring and observability
+- **Capacity Providers**: Custom EC2 capacity providers with managed scaling for cost optimization
+
 #### ECS EC2 Launch Template
+
+The launch template implementation provides **standardized, immutable infrastructure** for ECS container instances with integrated security hardening, monitoring, and operational tooling.
+
+**`Launch Template Configuration:`**
+
+```hcl
+##-- Launch Template for ECS Instances --##
+resource "aws_launch_template" "ecs_production_lt" {
+  name_prefix   = "${var.project_name}-production-lt"
+  image_id      = data.aws_ami.ecs_optimized.id
+  instance_type = var.instance_type
+  key_name      = var.key_pair_name
+
+  vpc_security_group_ids = [var.prod_ecs_security_group_id]
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ecs_instance_profile.name
+  }
+
+  user_data = base64encode(templatefile("${path.module}/user_data.tpl", {
+    cluster_name = aws_ecs_cluster.production.name
+  }))
+
+  ...
+
+  monitoring {
+    enabled = true
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name        = "${var.project_name}-production-ecs-instance"
+      Environment = "production"
+    }
+  }
+}
+```
+
+**`User Data Script:`**
+
+```bash
+#!/bin/bash
+echo "ECS_CLUSTER=${cluster_name}" >> /etc/ecs/ecs.config
+echo "ECS_ENABLE_TASK_IAM_ROLE=true" >> /etc/ecs/ecs.config
+echo "ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true" >> /etc/ecs/ecs.config
+
+#- Install CloudWatch agent -#
+yum install -y amazon-cloudwatch-agent
+
+#- Start ECS agent -#
+start ecs
+```
+
+> **Check File & User Data script**
+
+> [terraform-manifests/compute/main.tf](./terraform-manifests/compute/main.tf)
+>
+> [terraform-manifests/compute/user_data.tpl](./terraform-manifests/compute/user_data.tpl)
+
+<br/>
+
 #### Task Definitions
 
+The task definition implementation provides ***comprehensive container orchestration*** with integrated security monitoring through **<ins>CNCF Falco sidecar</ins>** patterns, ensuring runtime application security protection alongside application containers.
+
+**`Production Task Definition with Falco Sidecar:`**
+
+```hcl
+##-- ECS Task Definition - Production with Falco RASP --##
+resource "aws_ecs_task_definition" "prod" {
+  family                   = "${var.project_name}-app-prod-task-def"
+  network_mode             = "bridge"
+  requires_compatibilities = ["EC2"]
+  cpu                      = "256"
+  memory                   = "400"
+  
+  container_definitions    = jsonencode([
+    {
+      name      = "${var.project_name}-app-prod-container"
+      image     = "nginx:alpine"
+      essential = true
+      memory    = 256
+      memoryReservation = 128
+      portMappings = [{ 
+        containerPort = 80, 
+        hostPort = 0
+      }]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/aws/ecs/${var.project_name}/production"
+          "awslogs-region"        = "us-east-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    },
+    {
+      name      = "falco"
+      image     = "falcosecurity/falco:latest"
+      essential = false
+      memory    = 128
+      memoryReservation = 64
+      privileged = true
+      mountPoints = [
+        { sourceVolume = "docker-socket", containerPath = "/host/var/run/docker.sock" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "${var.project_name}-falco-logs"
+          "awslogs-region"        = "us-east-1"
+        }
+      }
+    }
+  ])
+  
+  volume {
+    name = "docker-socket"
+    host_path = "/var/run/docker.sock"
+  }
+}
+```
+
+> **Check File**
+
+> [terraform-manifests/compute/main.tf](./terraform-manifests/compute/main.tf)
+
+<br/>
+
+**`Falco Sidecar Integration:`**
+- **Runtime Security Monitoring**: Falco provides real-time detection of anomalous behavior and security threats during application execution
+- **Sidecar Pattern**: Falco runs as a separate container within the same task, sharing the network namespace and monitoring the application container
+- **Host System Access**: Privileged container with host filesystem mounts for comprehensive system call monitoring
+- **CloudWatch Integration**: Falco security alerts forwarded to CloudWatch for centralized monitoring and alerting
+
 ### Storage Module
+
+The Storage Module implements **centralized artifact management** and **Lambda function packaging** infrastructure, providing secure, encrypted S3 storage for CI/CD pipeline artifacts, security scan results, and Lambda deployment packages, in the form of <ins>**2 S3 Buckets**</ins>.
+
 #### S3 Artifact Store
+
+The S3 artifact store provides **comprehensive pipeline artifact management** with encryption for secure storage of build artifacts, security scan results, and deployment packages.
+
+> **Check File**
+
+> [terraform-manifests/storage/main.tf](./terraform-manifests/storage/main.tf)
+
+<br/>
+
 #### S3 Lambda Packaging Bucket
+
+The Lambda packaging S3 bucket provides **specialized storage** for Lambda function deployment package `(.zip)`.
+
+> **Check File**
+
+> [terraform-manifests/storage/main.tf](./terraform-manifests/storage/main.tf)
+
+<br/>
+
+**`Lambda Packaging Features:`**
+- **Automated Packaging**: Lambda ZIP package automatically uploaded during Terraform deployment
+- **Service Integration**: Bucket policies enabling secure access from Lambda and CodePipeline services
+- **Package Management**: Automated Lambda function package updates through CI/CD pipeline
+- **Security Controls**: Restrictive bucket policies ensuring least-privilege access to Lambda packages
+
+
+The Storage Module provides the foundational storage infrastructure that enables secure artifact management, Lambda function deployment, and comprehensive audit logging throughout the DevSecOps pipeline lifecycle.
 
 ## AWS CloudFormation template
 
@@ -1544,7 +1723,7 @@ DOCKERHUB_PASSWORD=""
 
 <br/>
 
-## Complete Deployment Example Overview
+## Fully Documented Deployment Walkthrough
 
 This section provides a **comprehensive step-by-step deployment walkthrough** of the AWS DevSecOps Hybrid CI/CD Platform, demonstrating the complete deployment process from initial setup through final verification. The walkthrough includes real screenshots from a live deployment, showing the actual execution flow and expected outputs.
 
@@ -1876,3 +2055,8 @@ The complete deployment walkthrough demonstrates:
 
 The AWS DevSecOps Hybrid CI/CD Factory provides enterprise-grade software delivery with integrated security, compliance, and operational monitoring, ready for immediate production use.
 
+---
+
+<br/>
+
+> © Project by [Haitam Bidiouane](https://linkedin.com/in/haitam-bidiouane/) - 2025
