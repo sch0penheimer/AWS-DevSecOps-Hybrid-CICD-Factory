@@ -522,33 +522,32 @@ The root Terraform configuration establishes <ins>**centralized variable managem
 The main configuration file orchestrates module composition and establishes provider configurations:
 
 ```hcl
+##-- Network Module --##
 module "network" {
-  source = "./modules/network"
-  
-  aws_region             = var.aws_region
-  environment           = var.environment
-  project_name          = var.project_name
-  vpc_cidr_block        = var.vpc_cidr_block
-  availability_zones    = var.availability_zones
+  source             = "./network"
+  project_name       = var.project_name
+  availability_zones = var.availability_zones
 }
 
+#--------------------------------------#
+##-- Compute Module (ECS EC2-based) --##
 module "compute" {
-  source = "./modules/compute"
-  
-  environment           = var.environment
-  project_name          = var.project_name
-  vpc_id               = module.network.vpc_id
-  private_subnet_ids   = module.network.private_subnet_ids
-  public_subnet_ids    = module.network.public_subnet_ids
-  alb_security_group_id = module.network.alb_security_group_id
+  source = "./compute"
+  project_name                  = var.project_name
+  vpc_id                        = module.network.vpc_id
+  public_subnet_ids             = module.network.public_subnet_ids
+  private_subnet_ids            = module.network.private_subnet_ids
+  prod_alb_security_group_id    = module.network.prod_alb_security_group_id
+  prod_ecs_security_group_id    = module.network.prod_ecs_security_group_id
+  staging_alb_security_group_id = module.network.staging_alb_security_group_id
+  staging_ecs_security_group_id = module.network.staging_ecs_security_group_id
 }
 
+#----------------------#
+##-- Storage Module --##
 module "storage" {
-  source = "./modules/storage"
-  
-  environment    = var.environment
-  project_name   = var.project_name
-  aws_region     = var.aws_region
+  source       = "./storage"
+  project_name = var.project_name
 }
 ```
 > **Check File**
@@ -562,11 +561,22 @@ module "storage" {
 Centralized variable management ensures consistent configuration across all modules:
 
 ```hcl
-variable "aws_region" {
-
+variable "project_name" {
+  description     = "Project name for the AWS DevSecOps CI/CD Platform"
+  type            = string
+  default         = "devsecops-platform"
 }
 
-variable "environment" {
+variable "aws_account_region" {
+  description = "AWS region of the associated AWS root account"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "availability_zones" {
+  description = "Main & Secondary Availability Zones"
+  type        = list(string)
+  default     = ["us-east-1a", "us-east-1b"]
 }
 
 ...
