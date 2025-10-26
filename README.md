@@ -1,7 +1,8 @@
 
 ---
 > **Last Updated:** October 25th, 2025
-> **Author:** [Haitam Bidiouane](https://github.com/sch0penheimer)
+>
+> **Author:** [Haitam Bidiouane](https://linkedin.com/in/haitam-bidiouane/)
 ---
 
 # AWS DevSecOps Hybrid CI/CD Factory
@@ -29,40 +30,44 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
   - [Pipeline Integration & Complete CI/CD Workflow](#pipeline-integration--complete-cicd-workflow)
 
 ### [Section III: Technical Implementation Details & Operations](#section-iii-technical-implementation-details--operations)
-- [VPC Internal Networking](#vpc-internal-networking)
-  - [Subnetting Strategy & High Availability](#subnetting-strategy--high-availability)
-  - [Custom NAT EC2 instances](#custom-nat-ec2-instances)
-  - [ALB Load Balancers](#alb-load-balancers)
-- [ECS Infrastructure Details](#ecs-infrastructure-details)
-  - [Staging & Production Clusters](#staging--production-clusters)
-  - [Task Definitions](#task-definitions)
-  - [Auto Scaling Groups](#auto-scaling-groups)
-  - [ECR Repository](#ecr-repository)
-- [CI/CD Pipeline](#cicd-pipeline)
-  - [AWS CodePipeline Stages](#codepipeline-stages)
+- [Modular Terraform Approach](#modular-terraform-appraoch)
+  - [Global Variables & Outputs](#global-variables--outputs)
+  - [Network Module](#networking-module)
+    - [Subnetting Strategy & High Availability](#subnetting-strategy--high-availability)
+    - [Custom NAT EC2 instances](#custom-nat-ec2-instances)
+    - [ALB Load Balancers](#alb-load-balancers)
+  - [Compute Module](#compute-module)
+    - [ECS Staging & Production Clusters](#ecs-staging--production-clusters)
+    - [Task Definitions](#task-definitions)
+    - [Auto Scaling Groups](#auto-scaling-groups)
+    - [ECR Repository](#ecr-repository)
+  - [Storage Module](#storage-module)
+    - [S3 Artifact Store](#s3-artifact-store)
+    - [S3 Lambda Packaging Bucket](#s3-lambda-packaging-bucket)
+
+- [AWS CloudFormation template](#aws-cloudformation-template)
+  - [CI/CD Workflow](#cicd-workflow)
     - [AWS CodeConnections Connection](#aws-codeconnections-connection)
+    - [Normalization & Aggregation Lambda Function](#security-normalizer-lambda-function)
     - [AWS CodeBuild Projects](#aws-codebuild-projects)
-  - [S3 Artifact Store](#s3-artifact-store)
-  - [Normalization & Aggregation Lambda Function](#security-normalizer-lambda-function)
-  - [Blue/Green Deployment Strategy](#blue--green-deployment-strategy)
-- [Security & Compliance](#security--compliance)
-  - [Security Tools Integration](#security-tools-integration)
+    - [Blue/Green Deployment Strategy](#blue--green-deployment-strategy)
+  - [Security & Compliance](#security--compliance)
+    - [SSM Parameter Store](#ssm-parameter-store)
+    - [Encryption & KMS](#encryption--kms)
     - [Secrets Scanning (git-secrets)](#secrets-scanning)
     - [SAST - Static Application Security Analysis (Snyk)](#sast--static-application-security-analysis)
-    - [SCA - Software Composition Analysis](#sca--software-composition-analysis)
+    - [SCA - Software Composition Analysis (Clair)](#sca--software-composition-analysis)
     - [DAST - Dynamic Application Security Analysis (OWASP ZAP)](#dast--dynamic-application-security-analysis)
     - [RASP - Runtime Application Security Protection (CNCF Falco)](#rasp--runtime-application-security-protection)
-  - [AWS Security Hub Integration](#aws-security-hub-integration)
-  - [IAM & Access Control](#iam--access-control)
-  - [SSM Parameter Store](#ssm-parameter-store)
-  - [Encryption & KMS](#encryption--kms)
-- [Event-Driven Architecture](#event-driven-architecture)
-  - [AWS EventBridge Rules](#aws-eventbridge-rules)
-  - [AWS CloudWatch Events](#aws-cloudwatch-events)
-  - [SNS Topics & Subscriptions](#sns-topics--subscriptions)  
-- [Monitoring & Observability](#monitoring--observability)
-  - [AWS CloudWatch Dedicated Log Groups](#aws-cloudwatch-dedicated-log-groups)
-  - [AWS CloudTrail & AWS Config](#cloudtrail--config)
+    - [AWS Security Hub Integration](#aws-security-hub-integration)
+    - [IAM & Access Control](#iam--access-control)
+  - [Event-Driven Architecture](#event-driven-architecture)
+    - [AWS EventBridge Rules](#aws-eventbridge-rules)
+    - [AWS CloudWatch Events](#aws-cloudwatch-events)
+    - [SNS Topics & Subscriptions](#sns-topics--subscriptions)  
+  - [Monitoring & Observability](#monitoring--observability)
+    - [AWS CloudWatch Dedicated Log Groups](#aws-cloudwatch-dedicated-log-groups)
+    - [AWS CloudTrail & AWS Config](#cloudtrail--config)
 
 ### [Section IV: Deployment & Configuration Guide](#section-iv-deployment--configuration-guide)
 - [Deployment Scripts](#deployment-scripts)
@@ -488,3 +493,52 @@ The full CI/CD Workflow implements a <ins>**comprehensive end-to-end DevSecOps a
 This sequential workflow ensures comprehensive security validation at every stage while maintaining operational efficiency and cost optimization through ephemeral staging environments and automated cleanup processes.
 
 The Factory's CI/CD Workflow creates a comprehensive DevSecOps automation that ensures enterprise-grade software delivery.
+
+---
+
+# Section III: Technical Implementation Details & Operations
+
+## Modular Terraform Approach
+### Global Variables & Outputs
+
+### Network Module
+#### Subnetting Strategy & High Availability
+#### Custom NAT EC2 instances
+#### ALB Load Balancers
+
+### Compute Module
+#### ECS Staging & Production Clusters
+#### Task Definitions
+#### Auto Scaling Groups
+#### ECR Repository
+
+### Storage Module
+#### S3 Artifact Store
+#### S3 Lambda Packaging Bucket
+
+## AWS CloudFormation template
+### CI/CD Workflow
+#### AWS CodeConnections Connection
+#### Normalization & Aggregation Lambda Function
+#### AWS CodeBuild Projects
+#### Blue/Green Deployment Strategy
+
+### Security & Compliance
+#### SSM Parameter Store
+#### Encryption & KMS
+#### Secrets Scanning (git-secrets)
+#### SAST - Static Application Security Analysis (Snyk)
+#### SCA - Software Composition Analysis (Clair)
+#### DAST - Dynamic Application Security Analysis (OWASP ZAP)
+#### RASP - Runtime Application Security Protection (CNCF Falco)
+#### AWS Security Hub Integration
+#### IAM & Access Control
+
+### Event-Driven Architecture
+#### AWS EventBridge Rules
+#### AWS CloudWatch Events
+#### SNS Topics & Subscriptions
+
+### Monitoring & Observability
+#### AWS CloudWatch Dedicated Log Groups
+#### AWS CloudTrail & AWS Config
