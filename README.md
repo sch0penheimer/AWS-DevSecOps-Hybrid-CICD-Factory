@@ -830,11 +830,241 @@ The custom NAT implementation provides **high availability** through multi-AZ de
 #### S3 Lambda Packaging Bucket
 
 ## AWS CloudFormation template
+
+The AWS CloudFormation template implements the complete CI/CD pipeline orchestration and security integration components of the DevSecOps Factory. This template can be deployed as a **standalone solution** with custom parameter values, but <ins>**is designed for automated deployment through the hybrid IaC approach**</ins> where Terraform outputs <ins>are passed</ins> as CloudFormation parameters.
+
 ### CI/CD Workflow
+
+The CI/CD workflow orchestrates the complete software delivery lifecycle through integrated AWS services, providing automated security scanning, compliance validation, and deployment automation. The workflow implements a **security-gate pattern** where each stage validates security posture before progression.
+
+**`CloudFormation Template Overview:`**
+
+```yaml
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  A fully automated AWS DevSecOps Hybrid CI/CD platform that provisions secure platform infrastructure using
+  Terraform and orchestrates a multi-stage CodePipeline via CloudFormation, integrating code
+  and container security scanning, centralized artifact storage with encryption, compliance monitoring,
+  and automated deployment to ECS clusters.
+
+Parameters:
+  #- Terraform Platform/Infra Related Parameters -#
+  StagingECSCluster:
+    Description: ECS Cluster for Staging
+    Type: String
+  
+  ProdECSCluster:
+    Description: ECS Cluster for Production
+    Type: String
+
+  EcrRegistryName:
+    Description: ECR Registry Name
+    Type: String
+  
+  #- Security Scanning Parameters -#
+  SnykAPIKey:
+    Description: Snyk API Key
+    Type: String
+    NoEcho: true
+  
+  AppURLForDAST:
+    Description: Application URL to run the Dynamic Application Security Testing
+    Type: String
+
+  #- Git Repository Configuration -#
+  GitProviderType:
+    Description: Git Repository provider type
+    Type: String
+    AllowedValues:
+      - GitHub
+      - GitLab
+      - Bitbucket
+
+...
+```
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
 #### AWS CodeConnections Connection
+
+The AWS CodeConnections Connection *(formerly CodeStar Connections)* establishes secure integration between the CI/CD pipeline and the external Git repository, providing webhook-based automation and secure credential management without exposing repository credentials.
+
+**`CodeConnections Resource Configuration:`**
+
+```yaml
+CodeConnection:
+  Type: AWS::CodeStarConnections::Connection
+  Properties:
+    ConnectionName: !Sub ${AWS::StackName}-conn
+    ProviderType: !Ref GitProviderType
+    Tags:
+      - Key: pipeline-name
+        Value: !Sub ${AWS::StackName}-pipeline
+```
+
+**`CloudWatch Event Integration:`**
+
+```yaml
+CloudWatchEventRule:
+  Type: 'AWS::Events::Rule'
+  Properties:
+    EventPattern:
+      source:
+        - aws.codestar-connections
+      detail-type:
+        - CodeStar Source Connection State Change
+      detail:
+        state:
+          - AVAILABLE
+    Targets:
+      - Arn: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-pipeline'
+        RoleArn: !GetAtt CloudWatchEventRole.Arn
+        Id: codepipeline-AppPipeline
+```
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
+**`Manual Authorization Requirement:`**
+
+When the CloudFormation template is deployed, the CodeConnections connection will be in a **PENDING** state and requires **ONE-TIME manual authorization** through the AWS Console:
+
+1. Navigate to **AWS CodePipeline → Settings → Connections** in the AWS Console
+2. Locate the connection.
+3. Click **Update pending connection** and authorize access to your Git repository
+4. Once authorized, the connection status changes to **AVAILABLE** and triggers automatic pipeline execution
+
+This manual step ensures secure repository access while maintaining automated pipeline triggering for subsequent code commits.
+
 #### Normalization & Aggregation Lambda Function
+
+The Lambda function serves as the **security data processing engine**, normalizing security scan outputs from multiple tools into standardized AWS Security Hub findings format (ASFF) and providing centralized vulnerability correlation and deduplication.
+
+<div align="center">
+
+![](./assets/lambda_function_layout.png)
+
+*Figure 11: Modular Lambda Normalization & Aggregation function - Custom logging, Isolated Security Hub Client module and Config separation with custom scale*
+
+</div>
+
+[TO BE CONTINUED]
+
+**`Lambda Function Configuration:`**
+
+```yaml
+LambdaSHImport:
+  Type: 'AWS::Lambda::Function'
+  Properties:
+    FunctionName: ImportToSecurityHub
+    Handler: !Ref LambdaHandler
+    Role: !GetAtt LambdaExecutionRole.Arn
+    Runtime: python3.9
+    Code:
+      S3Bucket: !Ref LambdaS3Bucket
+      S3Key: !Ref LambdaS3Key
+    Environment:
+      Variables:
+        S3_ARTIFACT_BUCKET_NAME: !Ref PipelineArtifactS3Bucket
+        AWS_PARTITION: aws
+    Timeout: 10
+```
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
+**`Security Data Processing Workflow:`**
+
+The Lambda function is triggered by each CodeBuild security scanning stage and performs:
+- **Data Extraction**: Retrieves security scan results
+- **Format Normalization**: Converts tool-specific outputs (Snyk, Clair, OWASP ZAP) to ASFF format
+- **Severity Classification**: Standardizes vulnerability severity levels across different tools
+- **Data Archival**: Pushes every aggregated finding into the artifact store
+- **Security Hub Integration**: Publishes normalized findings to AWS Security Hub for centralized visibility
+
 #### AWS CodeBuild Projects
+
+The CodeBuild projects implement the **multi-stage security scanning pipeline** with five specialized build environments, each optimized for specific security analysis tasks. 
+
+> [!IMPORTANT]
+> All CodeBuild projects reference buildspec files **<ins>must be located in the application codebase under the `buildspecs/` directory</ins>**.
+
+**`Buildspec File Structure Requirements:`**
+
+```
+application-repository/
+├── buildspecs/
+│   ├── 1-secretsanalysis-buildspec.yml
+│   ├── 2-snyk-sast-buildspec.yml
+│   ├── 3-clair-sca-staging-buildspec.yml
+│   ├── 4-owasp-zap-dast-buildspec.yml
+│   └── 5-prod-bluegreen-buildspec.yml
+├── src/
+├── Dockerfile
+└── ...
+```
+
+> **Check Files**
+
+> [buildspec/1-secretsanalysis-buildspec.yml](./buildspec/1-secretsanalysis-buildspec.yml)
+> [buildspec/2-snyk-sast-buildspec.yml](./buildspec/2-snyk-sast-buildspec.yml)
+> [buildspec/3-clair-sca-staging-buildspec.yml](./buildspec/3-clair-sca-staging-buildspec.yml)
+> [buildspec/4-owasp-zap-dast-buildspec.yml](./buildspec/4-owasp-zap-dast-buildspec.yml)
+> [buildspec/5-prod-bluegreen-buildspec.yml](./buildspec/5-prod-bluegreen-buildspec.yml)
+
+<br/>
+
 #### Blue/Green Deployment Strategy
+The Blue/Green deployment strategy provides **zero-downtime production releases** through ECS service coordination and Application Load Balancer target group management, ensuring seamless traffic switching and automatic rollback capabilities.
+
+**`Production Deployment CodeBuild Project:`**
+
+```yaml
+ProductionBlueGreenBuildProject:
+  Type: AWS::CodeBuild::Project
+  Properties:
+    Description: Production Blue/Green Deployment using ECS Service Updates
+    Environment:
+      ComputeType: BUILD_GENERAL1_SMALL
+      Image: aws/codebuild/standard:5.0
+      Type: LINUX_CONTAINER
+      EnvironmentVariables:
+      - Name: ECR_REPO_URI
+        Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRegistryName}
+      - Name: ECS_CLUSTER_NAME
+        Value: !Ref ProdECSCluster
+      - Name: ECS_TASK_DEFINITION
+        Value: !Ref ProdECSTaskDefinition
+      - Name: ECS_SERVICE_NAME
+        Value: !Ref ProdECSService
+    VpcConfig:
+      VpcId: !Ref VpcId
+      Subnets: !Ref PrivateSubnetIds 
+      SecurityGroupIds: 
+        - !Ref CodeBuildSecurityGroupId
+    Source:
+      Type: CODEPIPELINE
+      BuildSpec: buildspecs/5-prod-bluegreen-buildspec.yml
+```
+
+> **Check Files**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+> [buildspec/5-prod-bluegreen-buildspec.yml](./buildspec/5-prod-bluegreen-buildspec.yml)
+
+<br/>
+
+This approach ensures **production stability** while enabling rapid deployment cycles and immediate rollback capabilities for critical production environments.
 
 ### Security & Compliance
 #### SSM Parameter Store
