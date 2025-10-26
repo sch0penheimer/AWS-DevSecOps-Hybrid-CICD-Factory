@@ -33,14 +33,12 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 - [Modular Terraform Approach](#modular-terraform-appraoch)
   - [Global Variables & Outputs](#global-variables--outputs)
   - [Network Module](#networking-module)
-    - [Subnetting Strategy & High Availability](#subnetting-strategy--high-availability)
+    - [Security Groups & Firewalling Strategy](#security-groups--firewalling-strategy)
     - [Custom NAT EC2 instances](#custom-nat-ec2-instances)
-    - [ALB Load Balancers](#alb-load-balancers)
   - [Compute Module](#compute-module)
     - [ECS Staging & Production Clusters](#ecs-staging--production-clusters)
+    - [ECS EC2 Launch Template](#ecs-ec2-launch-template)
     - [Task Definitions](#task-definitions)
-    - [Auto Scaling Groups](#auto-scaling-groups)
-    - [ECR Repository](#ecr-repository)
   - [Storage Module](#storage-module)
     - [S3 Artifact Store](#s3-artifact-store)
     - [S3 Lambda Packaging Bucket](#s3-lambda-packaging-bucket)
@@ -75,7 +73,7 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
   - [Environment Variables](#environment-variables)
   - [Terraform Variables](#terraform-variables)
   - [CloudFormation Parameters](#cloudformation-parameters)
-  - [Cross-IaC Integration](#cross-iac-integration)
+- [Complete Deployment Example Overview](#complete-deployment-example-overview)
 - [License](#license)
 
 
@@ -639,15 +637,193 @@ output "ecr_repository_uri" {
 The root config module establishes dependency relationships and data flow between modules through explicit output-to-input variable mapping, ensuring proper resource provisioning order and configuration consistency across the entire infrastructure stack.
 
 ### Network Module
-#### Subnetting Strategy & High Availability
+
+The Network Module implements the foundational VPC architecture with strategic subnet segmentation, security group configuration, and custom NAT instance deployment. This module establishes the network perimeter and traffic control policies that enable secure multi-tier application deployment with least-privilege access controls.
+
+#### Security Groups & Firewalling Strategy
+
+The security group implementation follows a <ins>**zero-trust network model**</ins> with explicit allow rules and default-deny policies. Each security group enforces least-privilege access with specific protocol and port restrictions.
+
+**`ALB Security Group Configuration:`**
+
+```hcl
+##-- Application Load Balancer Security Group --##
+resource "aws_security_group" "alb_sg" {
+  name_prefix = "${var.project_name}-alb-sg"
+  vpc_id      = aws_vpc.main.id
+
+  #- HTTP Inbound from Internet -#
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTP access from internet"
+  }
+
+  #- HTTPS Inbound from Internet -#
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS access from internet"
+  }
+
+  #- All Outbound Traffic -#
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound traffic"
+  }
+
+  tags = {
+    Name = "${var.project_name}-alb-sg"
+  }
+}
+```
+
+**`ECS Security Group Configuration:`**
+
+```hcl
+##-- ECS Security Group - Production --##
+resource "aws_security_group" "ecs_prod_sg" {
+  name_prefix = "${var.project_name}-ecs-prod-sg"
+  vpc_id      = aws_vpc.main.id
+
+  #- HTTP from ALB Security Group Only -#
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+    description     = "HTTP from ALB only"
+  }
+
+  #- HTTPS from ALB Security Group Only -#
+  ingress {
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+    description     = "HTTPS from ALB only"
+  }
+
+  ##-- All Outbound Traffic (Reginal ECS Control Plane access constraint) --##
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound traffic"
+  }
+
+  tags = {
+    Name = "${var.project_name}-ecs-prod-sg"
+  }
+}
+```
+
+**`NAT Instance Security Group Configuration:`**
+
+```hcl
+##-- NAT Instance Security Group --##
+resource "aws_security_group" "nat_sg" {
+  name_prefix = "${var.project_name}-nat-sg"
+  vpc_id      = aws_vpc.main.id
+
+  #- HTTP from Private Subnets Only -#
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [aws_subnet.private_subnet_a.cidr_block, aws_subnet.private_subnet_b.cidr_block]
+    description = "HTTP from private subnets"
+  }
+
+  #- HTTPS from Private Subnets Only -#
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_subnet.private_subnet_a.cidr_block, aws_subnet.private_subnet_b.cidr_block]
+    description = "HTTPS from private subnets"
+  }
+
+  #- All Outbound Traffic -#
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound traffic"
+  }
+
+  tags = {
+    Name = "${var.project_name}-nat-sg"
+  }
+}
+```
+
+> **Check File**
+
+> [terraform-manifests/network/main.tf](./terraform-manifests/network/main.tf)
+
+<br/>
+
+**`Least-Privilege Access Strategy:`**
+
+The security group architecture implements **defense-in-depth** through layered access controls:
+
+- **`Internet Access`**: Only ALB security group permits inbound traffic from `0.0.0.0/0` on ports 80/443
+- **Backend Protection**: ECS security groups **exclusively** accept traffic from ALB security group, preventing direct internet access
+- **`Staging Cluster Exclusiveness`**: The staging cluster is only accessible by the **CodeBuild Security Group**.
+- **`NAT Isolation`**: NAT instances only accept traffic from private subnet CIDR blocks, ensuring controlled egress
+- **`Source/Destination Validation`**: Security groups reference other security groups rather than IP ranges, providing dynamic access control
+- **`Protocol Restriction`**: Explicit protocol and port definitions prevent unauthorized service access
+
+This strategy ensures that **no private resource can receive direct internet traffic**, while maintaining necessary connectivity for application functionality and system updates.
+
 #### Custom NAT EC2 instances
-#### ALB Load Balancers
+
+The custom NAT instance implementation provides **cost-optimized internet egress** for private subnet resources while maintaining AWS Free Tier compatibility. These instances replace AWS Managed NAT Gateways, reducing monthly costs from `$90` to `$0` for small-scale deployments.
+
+
+**`NAT Instance User Data Script`**:
+
+The User Data script configures EC2 instances for NAT functionality with IP forwarding and iptables rules:
+
+```bash
+    #!/bin/bash
+    sudo yum install iptables-services -y
+    sudo systemctl enable iptables
+    sudo systemctl start iptables
+
+    #- Enable IP forwarding -#
+    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.d/custom-ip-forwarding.conf
+    sudo sysctl -p /etc/sysctl.d/custom-ip-forwarding.conf
+
+    PUBLIC_IFACE=$(ip route | awk '/default/ {print $5}')
+
+    sudo /sbin/iptables -t nat -A POSTROUTING -o $PUBLIC_IFACE -j MASQUERADE
+    sudo /sbin/iptables -F FORWARD
+    sudo service iptables save
+```
+
+> **Check File**
+
+> [terraform-manifests/network/main.tf](./terraform-manifests/network/main.tf)
+
+<br/>
+
+The custom NAT implementation provides **high availability** through multi-AZ deployment, **cost optimization** through Free Tier-eligible t2.micro instances, and **security hardening** through restricted security group rules and automated configuration management.
 
 ### Compute Module
 #### ECS Staging & Production Clusters
+#### ECS EC2 Launch Template
 #### Task Definitions
-#### Auto Scaling Groups
-#### ECR Repository
 
 ### Storage Module
 #### S3 Artifact Store
@@ -679,3 +855,15 @@ The root config module establishes dependency relationships and data flow betwee
 ### Monitoring & Observability
 #### AWS CloudWatch Dedicated Log Groups
 #### AWS CloudTrail & AWS Config
+
+---
+
+# Section IV: Deployment & Configuration Guide
+## Deployment Scripts
+## Configuration Reference
+### Environment Variables
+### Terraform Variables
+### CloudFormation Parameters
+
+## Complete Deployment Example Overview
+## License
