@@ -553,7 +553,9 @@ module "storage" {
 ```
 > **Check File**
 
-> [terraform-manifests/main.tf](./terraform-manifests/main.tf) <br/>
+> [terraform-manifests/main.tf](./terraform-manifests/main.tf)
+
+<br/>
 
 **`Global Variable Definitions`**:
 
@@ -571,7 +573,9 @@ variable "environment" {
 ```
 > **Check File**
 
-> [terraform-manifests/global_variables.tf](./terraform-manifests/global_variables.tf) <br/>
+> [terraform-manifests/global_variables.tf](./terraform-manifests/global_variables.tf)
+
+<br/>
 
 
 **`Structured Output Generation:`**
@@ -617,7 +621,9 @@ output "ecr_repository_uri" {
 
 > **Check File**
 
-> [terraform-manifests/global_outputs.tf](./terraform-manifests/global_outputs.tf) <br/>
+> [terraform-manifests/global_outputs.tf](./terraform-manifests/global_outputs.tf)
+
+<br/>
 
 
 The root config module establishes dependency relationships and data flow between modules through explicit output-to-input variable mapping, ensuring proper resource provisioning order and configuration consistency across the entire infrastructure stack.
