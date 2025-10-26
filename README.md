@@ -74,6 +74,9 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 ### [Section IV: Deployment & Configuration Guide](#section-4-deployment--configuration-guide)
 - [Deployment Scripts](#deployment-scripts)
 - [Environment Configuration Reference](#environment-configuration-reference)
+
+---
+
 - [Fully Documented Deployment Walkthrough](#fully-documented-deployment-walkthrough)
 
 <br/>
