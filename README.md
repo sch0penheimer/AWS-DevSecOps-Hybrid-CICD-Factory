@@ -20,25 +20,25 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 
 ## Table of Contents
 
-### [Section I: Factory Architecture & Infrastructure Overview](#section-i-platform-architecture--infrastructure-overview)
+### [Section I: Factory Architecture & Infrastructure Overview](#section-1-factory-architecture--infrastructure-overview)
 - [Project Overview](#project-overview)
 - [Architecture](#architecture)
   - [Hybrid IaC Approach](#hybrid-iac-approach)
   - [High-level AWS Architecture](#high-level-aws-architecture)
 
-### [Section II: Architectural Deep Dive](#section-ii-architectural-deep-dive)
+### [Section II: Architectural Deep Dive](#section-2-architectural-deep-dive)
 - [Terraform Infrastructure Sub-Architecture](#terraform-infrastructure-sub-architecture)
   - [VPC Architecture](#vpc-architecture)
   - [Public Resources Architecture](#public-resources-architecture)
   - [Private Resources Architecture](#private-resources-architecture)
-- [AWS CloudFormation CI/CD Sub-Architecture](#cloudformation-ci/cd-sub-architecture)
+- [AWS CloudFormation CI/CD Sub-Architecture](#aws-cloudformation-cicd-sub-architecture)
   - [CodePipeline Architecture](#codepipeline-architecture)
   - [Pipeline Integration & Complete CI/CD Workflow](#pipeline-integration--complete-cicd-workflow)
 
-### [Section III: Technical Implementation Details & Operations](#section-iii-technical-implementation-details--operations)
-- [Modular Terraform Approach](#modular-terraform-appraoch)
+### [Section III: Technical Implementation Details & Operations](#section-3-technical-implementation-details--operations)
+- [Modular Terraform Approach](#modular-terraform-approach)
   - [Global Variables & Outputs](#global-variables--outputs)
-  - [Network Module](#networking-module)
+  - [Network Module](#network-module)
     - [Security Groups & Firewalling Strategy](#security-groups--firewalling-strategy)
     - [Custom NAT EC2 instances](#custom-nat-ec2-instances)
   - [Compute Module](#compute-module)
@@ -52,33 +52,33 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 - [AWS CloudFormation template](#aws-cloudformation-template)
   - [CI/CD Workflow](#cicd-workflow)
     - [AWS CodeConnections Connection](#aws-codeconnections-connection)
-    - [Normalization & Aggregation Lambda Function](#security-normalizer-lambda-function)
+    - [Normalization & Aggregation Lambda Function](#normalization--aggregation-lambda-function)
     - [AWS CodeBuild Projects](#aws-codebuild-projects)
-    - [Blue/Green Deployment Strategy](#blue--green-deployment-strategy)
+    - [Blue/Green Deployment Strategy](#bluegreen-deployment-strategy)
   - [Security & Compliance](#security--compliance)
     - [SSM Parameter Store](#ssm-parameter-store)
     - [Encryption & KMS](#encryption--kms)
-    - [Secrets Scanning (git-secrets)](#secrets-scanning)
-    - [SAST - Static Application Security Analysis (Snyk)](#sast--static-application-security-analysis)
-    - [SCA - Software Composition Analysis (Clair)](#sca--software-composition-analysis)
-    - [DAST - Dynamic Application Security Analysis (OWASP ZAP)](#dast--dynamic-application-security-analysis)
-    - [RASP - Runtime Application Security Protection (CNCF Falco)](#rasp--runtime-application-security-protection)
+    - [Secrets Scanning (git-secrets)](#secrets-scanning-git-secrets)
+    - [SAST - Static Application Security Analysis (Snyk)](#sast---static-application-security-analysis-snyk)
+    - [SCA - Software Composition Analysis (Clair)](#sca---software-composition-analysis-clair)
+    - [DAST - Dynamic Application Security Analysis (OWASP ZAP)](#dast---dynamic-application-security-analysis-owasp-zap)
+    - [RASP - Runtime Application Security Protection (CNCF Falco)](#rasp---runtime-application-security-protection-cncf-falco)
   - [Event-Driven Architecture](#event-driven-architecture)
     - [AWS EventBridge Rules](#aws-eventbridge-rules)
     - [AWS CloudWatch Events](#aws-cloudwatch-events)
     - [SNS Topics & Subscriptions](#sns-topics--subscriptions)  
   - [Monitoring & Observability](#monitoring--observability)
     - [AWS CloudWatch Dedicated Log Groups](#aws-cloudwatch-dedicated-log-groups)
-    - [AWS CloudTrail & AWS Config](#cloudtrail--config)
+    - [AWS CloudTrail & AWS Config](#aws-cloudtrail--aws-config)
 
-### [Section IV: Deployment & Configuration Guide](#section-iv-deployment--configuration-guide)
+### [Section IV: Deployment & Configuration Guide](#section-4-deployment--configuration-guide)
 - [Deployment Scripts](#deployment-scripts)
 - [Environment Configuration Reference](#environment-configuration-reference)
 - [Fully Documented Deployment Walkthrough](#fully-documented-deployment-walkthrough)
 
 <br/>
 
-# Section I: Factory Architecture & Infrastructure Overview
+# Section 1: Factory Architecture & Infrastructure Overview
 
 ## Project Overview
 
@@ -178,7 +178,7 @@ The next chapter provides comprehensive technical deep-dives into each architect
 
 ---
 
-# Section II: Architectural Deep Dive
+# Section 2: Architectural Deep Dive
 ## Terraform Infrastructure Sub-Architecture
 <div align="center">
 
@@ -493,7 +493,7 @@ The Factory's CI/CD Workflow creates a comprehensive DevSecOps automation that e
 
 ---
 
-# Section III: Technical Implementation Details & Operations
+# Section 3: Technical Implementation Details & Operations
 
 ## Modular Terraform Approach
 
@@ -1633,7 +1633,7 @@ The Event-Driven Architecture and Monitoring & Observability systems work togeth
 
 ---
 
-# Section IV: Deployment & Configuration Guide
+# Section 4: Deployment & Configuration Guide
 
 ## Deployment Scripts
 
