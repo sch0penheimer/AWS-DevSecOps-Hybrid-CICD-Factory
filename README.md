@@ -956,6 +956,18 @@ The Lambda function serves as the **security data processing engine**, normalizi
 </div>
 
 [TO BE CONTINUED]
+**`Lambda Function Architecture:`**
+
+The Lambda function implements a **modular, scalable security data processing architecture** with dedicated modules for each security tool integration. The function structure includes:
+
+1. **`lambda_handler.py`**: Main handler orchestrating security scan result processing and AWS Security Hub integration
+2. **`securityhub_client.py`**: Dedicated AWS Security Hub client with ASFF (AWS Security Finding Format) transformation capabilities
+3. **`config.json`**: Centralized configuration management for security finding severity mapping and tool-specific settings
+**4. `config_manager.py`**: Configuration management module that loads and validates settings from the `config.json` file.
+**5. `report_processor.py`**: The <ins>main security report processing **engine**</ins> that handles the parsing, validation, and standardization of security scan outputs from different tools (Snyk, Clair, OWASP ZAP). This module extracts vulnerability data, normalizes finding formats, applies severity classifications, and prepares structured data for ASFF transformation and Security Hub ingestion.
+6. **`logger_config.py`**: Custom logging module providing structured logging.
+
+The Lambda architecture enables **extensible security tool integration** through standardized input processing, consistent ASFF output formatting, and centralized error handling across all supported security scanning tools (Snyk, Clair & OWASP ZAP).
 
 **`Lambda Function Configuration:`**
 
