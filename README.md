@@ -67,11 +67,10 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
 
 ### [Section IV: Deployment & Configuration Guide](#section-iv-deployment--configuration-guide)
 - [Deployment Scripts](#deployment-scripts)
-- [Configuration Reference](#configuration-reference)
-  - [Environment Variables](#environment-variables)
-  - [Terraform Variables](#terraform-variables)
-  - [CloudFormation Parameters](#cloudformation-parameters)
+- [Environment Configuration Reference](#environment-configuration-reference)
 - [Complete Deployment Example Overview](#complete-deployment-example-overview)
+
+---
 - [License](#license)
 
 
@@ -1324,22 +1323,550 @@ Falco is implemented as a sidecar container within ECS task definitions, providi
 The RASP implementation ensures **continuous security monitoring** throughout the application lifecycle, providing real-time threat detection and incident response capabilities for production workloads.
 
 ### Event-Driven Architecture
+
+The Event-Driven Architecture implements **comprehensive event monitoring and automated response capabilities** throughout the DevSecOps Factory, enabling real-time operational awareness and incident response across all pipeline stages and infrastructure components.
+
 #### AWS EventBridge Rules
+
+EventBridge provides **centralized event routing** for pipeline state changes, infrastructure events, and security findings, enabling automated workflows and operational responses.
+
+**`Pipeline State Monitoring:`**
+
+```yaml
+CloudWatchPipelineEventRule:
+  Type: 'AWS::Events::Rule'
+  Properties:
+    EventPattern:
+      source:
+        - aws.codepipeline
+      detail-type:
+        - CodePipeline Stage Execution State Change
+    Targets:
+      - Arn: !Ref PipelineTopic
+        Id: "PipelineNotifications"
+```
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
 #### AWS CloudWatch Events
+
+CloudWatch Events integration provides **automated pipeline triggering** and cross-service event coordination, ensuring seamless workflow automation across AWS services.
+
+**`Automated Pipeline Execution:`**
+- **CodeConnections Integration**: Automatic pipeline triggering on repository state changes
+- **Cross-Service Coordination**: Event-driven communication between CodePipeline, CodeBuild, and ECS services
+
 #### SNS Topics & Subscriptions
 
+The platform implements a **multi-topic pub/sub architecture** for comprehensive notification distribution across different operational contexts and stakeholder groups.
+
+**`Multi-Topic Architecture:`**
+
+```yaml
+ManualApprovalTopic:
+  Type: AWS::SNS::Topic
+  Properties:
+    DisplayName: PipelineManualApprovalTopic
+    Subscription: 
+    - Endpoint: !Ref PipelineManualApproverMail
+      Protocol: "email"
+
+PipelineTopic:
+  Type: AWS::SNS::Topic
+  Properties:
+    DisplayName: PipelineStageChangeNotificationTopic
+    Subscription: 
+    - Endpoint: !Ref PipelineNotificationMail
+      Protocol: "email"
+
+CloudTrailTopic:
+  Type: AWS::SNS::Topic
+  Properties:
+    DisplayName: CloudTrailNotificationTopic
+    Subscription: 
+    - Endpoint: !Ref PipelineNotificationMail
+      Protocol: "email"
+...
+
+```
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
+- **`Manual Approval Topic`**: Dedicated notifications for production deployment approvals requiring human intervention
+- **`Pipeline State Topic`**: Operational notifications for pipeline stage changes, build status, and deployment progress
+- **`CloudTrail Audit Topic`**: Security and compliance notifications for infrastructure changes and API activity monitoring
+
 ### Monitoring & Observability
+
+The Monitoring & Observability implementation provides **comprehensive visibility** into all aspects of the DevSecOps Factory, from infrastructure performance to security posture and compliance status.
+
 #### AWS CloudWatch Dedicated Log Groups
+
+CloudWatch Log Groups implement **structured logging** across all pipeline components with dedicated log streams for different operational contexts and security analysis.
+
+**`Pipeline-Specific Log Groups:`**
+
+```yaml
+PipelineCloudWatchLogGroup:
+  Type: AWS::Logs::LogGroup
+  Properties: 
+    LogGroupName: !Sub ${AWS::StackName}-pipeline-logs
+    RetentionInDays: 7
+
+TrailLogGroup:
+  Type: 'AWS::Logs::LogGroup'
+  Properties:
+    LogGroupName: !Sub ${AWS::StackName}-cloudtrail-logs
+    RetentionInDays: 14
+```
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
 #### AWS CloudTrail & AWS Config
+
+CloudTrail and Config provide **comprehensive compliance monitoring** and **configuration drift detection** across all infrastructure and pipeline resources.
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
+The Event-Driven Architecture and Monitoring & Observability systems work together to provide **real-time operational intelligence** and **proactive incident response**, ensuring the DevSecOps Factory maintains optimal performance, security, and compliance posture.
 
 ---
 
 # Section IV: Deployment & Configuration Guide
+
 ## Deployment Scripts
-## Configuration Reference
-### Environment Variables
-### Terraform Variables
-### CloudFormation Parameters
+
+The AWS DevSecOps Hybrid CI/CD Platform provides **automated deployment scripts** that orchestrate the complete platform provisioning with a single command. These scripts handle the complex integration between Terraform infrastructure deployment and CloudFormation pipeline provisioning, automatically passing Terraform outputs as CloudFormation parameters.
+
+The deployment automation implements a **sequential orchestration pattern** that ensures proper dependency resolution and resource integration:
+
+
+1. **Prerequisites Validation**: Comprehensive validation of required tools, credentials, and configuration
+2. **Lambda Package Creation**: Automated packaging of the Security Hub Lambda function
+3. **Infrastructure Deployment**: Terraform infrastructure provisioning with state management
+4. **Output Extraction**: Automated capture and processing of Terraform outputs
+5. **Pipeline Deployment**: CloudFormation stack deployment with parameter injection
+6. **Integration Verification**: Post-deployment validation and status reporting
+
+***Cross-Platform Script Support:***
+
+- **`deploy.sh`** (Bash): Primary deployment script supporting Linux, macOS, and Windows (Git Bash/WSL)
+- **`deploy.ps1`** (PowerShell): Windows-native PowerShell implementation
+
+> **Check Scripts**
+
+> [Bash Script](./scripts/deploy.sh)
+>
+> [PowerShell Script](./scripts/deploy.ps1)
+
+<br/>
+
+> [!WARNING]
+> The PowerShell script is not stable and in Dev Mode. Please stick to deploying using the `Bash script` also for non Linux devices by using a bash shell, it has built-in OS detection.
+
+- **One-Command Deployment**: Complete platform deployment with `./deploy.sh`
+- **Automated Rollback**: Complete cleanup with `--rollback-deployment` flag
+- **Hybrid IaC Integration**: Automatic Terraform output extraction and CloudFormation parameter injection
+- **Error Handling**: Comprehensive error detection and rollback capabilities
+- **Progress Logging**: Detailed deployment progress with colored output and timestamps
+
+**`Command Examples:`**
+
+```bash
+##- Show help and available options -##
+./deploy.sh --help
+
+##- Full deployment with new infrastructure -##
+./deploy.sh
+
+
+#- Complete rollback and cleanup -#
+./deploy.sh --rollback-deployment
+
+#- Deploy only CI/CD pipeline to existing infrastructure -#
+./deploy.sh --skip-infrastructure
+
+```
+
+The deployment scripts eliminate manual parameter mapping between IaC tools, ensuring consistent deployments and reducing configuration errors through automated cross-tool integration.
+
+## Environment Configuration Reference
+The platform configuration is managed through a **centralized environment file** (`.env`) that contains all required parameters for deployment and operation. This approach ensures consistent configuration across deployment scripts and infrastructure provisioning.
+
+The Environment File Structure is mentionned in the [.env.template](./.env.template) file, and is the following:
+
+```bash
+#-- Remote Git Repository Configuration (For AWS CodeConnections Connection) --#
+GIT_PROVIDER_TYPE=""
+FULL_GIT_REPOSITORY_ID=""
+BRANCH_NAME=""
+
+#-- Snyk API Key --#
+SNYK_API_KEY=""
+
+#-- Email Notifications Addresses --#
+PIPELINE_NOTIFICATION_MAIL=""
+PIPELINE_MANUAL_APPROVER_MAIL=""
+
+#####################################
+
+#-- AWS Configuration --#
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
+AWS_REGION=""
+
+#-- Docker Hub Auth (For Pull Limits) --#
+DOCKERHUB_USERNAME=""
+DOCKERHUB_PASSWORD=""
+```
+
+<br/>
 
 ## Complete Deployment Example Overview
-## License
+
+This section provides a **comprehensive step-by-step deployment walkthrough** of the AWS DevSecOps Hybrid CI/CD Platform, demonstrating the complete deployment process from initial setup through final verification. The walkthrough includes real screenshots from a live deployment, showing the actual execution flow and expected outputs.
+
+### Prerequisites Verification & Initial Setup
+
+The deployment process begins with the automated deployment script validating all prerequisites and initializing the environment configuration.
+
+<div align="center">
+
+![Deployment Script Help](./doc/1_1-deployment_script_help.png)
+
+*Figure 12: Deployment Script Help - Command-line options and usage instructions for the automated deployment script*
+
+</div>
+
+The deployment script provides comprehensive help documentation, showing all available options including full deployment, infrastructure skipping, and rollback capabilities.
+
+<div align="center">
+
+![Deployment Script Initialization](./doc/1_2-deployment_script_init.png)
+
+*Figure 13: Deployment Script Initialization - Prerequisites validation and environment configuration loading*
+
+</div>
+
+The script performs thorough validation of all required tools (AWS CLI, Terraform, jq, zip utilities) and loads environment configuration from the `.env` file with comprehensive error checking.
+
+### Terraform Infrastructure Deployment
+
+Once prerequisites are validated, the deployment script initiates the Terraform infrastructure provisioning process.
+
+<div align="center">
+
+![Terraform Initialization](./doc/1_3-terraform_initialization.png)
+
+*Figure 14: Terraform Initialization - Terraform backend initialization and provider plugin installation*
+
+</div>
+
+Terraform initializes the working directory, downloading required provider plugins and setting up the backend configuration for state management.
+
+<div align="center">
+
+![Terraform Platform Planning](./doc/1_4-terraform_platform_planning.png)
+
+*Figure 15: Terraform Platform Planning - Infrastructure planning phase showing resources to be created*
+
+</div>
+
+The Terraform planning phase analyzes the configuration and displays all resources that will be created, including VPC components, ECS clusters, security groups, and supporting infrastructure.
+
+<div align="center">
+
+![Successful Platform Resources Deployment](./doc/1_5-successful_platform_resources_deployment.png)
+
+*Figure 16: Successful Platform Resources Deployment - Terraform apply completion with created infrastructure summary*
+
+</div>
+
+Terraform successfully provisions the complete infrastructure foundation, creating all networking, compute, and storage resources as defined in the modular configuration.
+
+<div align="center">
+
+![Successful Terraform to CloudFormation Deployments](./doc/1_6-successful_terraform_to_cloudformation_deployments.png)
+
+*Figure 17: Successful Terraform to CloudFormation Integration - Hybrid IaC deployment completion with output capture*
+
+</div>
+
+The deployment script successfully captures Terraform outputs and initiates the CloudFormation pipeline deployment, demonstrating the seamless integration between the two IaC tools.
+
+<div align="center">
+
+![Deployment Rollback Execution](./doc/1_7-deployment_rollback_execution.png)
+
+*Figure 18: Deployment Rollback Execution - Complete infrastructure and pipeline rollback to previous stable state*
+
+</div>
+
+The rollback functionality demonstrates the automated cleanup capabilities, ensuring complete resource removal when testing or rolling back deployments.
+
+### CloudFormation Stack Deployment & AWS Service Integration
+
+Following successful infrastructure provisioning, the deployment process transitions to CloudFormation stack creation and AWS service orchestration.
+
+<div align="center">
+
+![CloudFormation Stack Completed](./doc/2-1_cloudformation_stack_completed.png)
+
+*Figure 19: CloudFormation Stack Deployment Completion - Complete CI/CD pipeline stack creation with all AWS services*
+
+</div>
+
+The CloudFormation stack successfully creates all pipeline components including CodePipeline, CodeBuild projects, Lambda functions, SNS topics, and IAM roles with proper cross-service integration.
+
+<div align="center">
+
+![CloudFormation Stack Infrastructure Composer](./doc/2-2_cloudformation_stack_infrastructure_composer.png)
+
+*Figure 20: CloudFormation Infrastructure Composer - Visual representation of deployed AWS resources and their dependencies*
+
+</div>
+
+The AWS CloudFormation Infrastructure Composer provides a comprehensive visual representation of all deployed resources, showing the complex interconnections between CodePipeline stages, security services, and monitoring components.
+
+<div align="center">
+
+![CloudFormation Resource Creation Graph](./doc/2-3_cloudformation_resource_creation_graph.png)
+
+*Figure 21: CloudFormation Resource Creation Graph - Resource dependency mapping and creation sequence visualization*
+
+</div>
+
+The resource creation graph illustrates the sophisticated dependency management within the CloudFormation template, ensuring proper resource creation order and cross-service references.
+
+### CodeConnections Setup & Repository Integration
+
+Post-deployment configuration requires manual setup of the AWS CodeConnections connection for secure repository integration.
+
+<div align="center">
+
+![CodeConnections Connection Setup](./doc/3_codeconnections_connection_setup.png)
+
+*Figure 22: CodeConnections Connection Setup - Manual authorization step for secure Git repository integration*
+
+</div>
+
+The CodeConnections setup requires one-time manual authorization through the AWS Console, establishing secure webhook-based integration between the CI/CD pipeline and the external Git repository.
+
+### ECS Cluster Infrastructure Verification
+
+The deployment verification includes confirmation of ECS cluster infrastructure and container orchestration capabilities.
+
+<div align="center">
+
+![ECS Clusters](./doc/5_ecs_clusters.png)
+
+*Figure 23: ECS Clusters Overview - Staging and production clusters with EC2-backed container instances*
+
+</div>
+
+The ECS clusters demonstrate the separation between staging and production environments, with the staging cluster configured for ephemeral operation (scaling to zero when not in use) and the production cluster maintaining persistent capacity.
+
+### S3 Storage Infrastructure & Artifact Management
+
+The platform's storage infrastructure provides centralized artifact management and Lambda function packaging.
+
+<div align="center">
+
+![Platform S3 Buckets](./doc/6_1_platform_s3_buckets.png)
+
+*Figure 24: Platform S3 Buckets - Artifact storage and Lambda function packaging infrastructure*
+
+</div>
+
+The S3 bucket architecture includes dedicated buckets for pipeline artifacts, Lambda function packages, and CloudTrail logging, all configured with appropriate encryption and lifecycle policies.
+
+<div align="center">
+
+![Artifact Store Bucket](./doc/6_2_artifact_store_bucket.png)
+
+*Figure 25: Artifact Store Bucket Contents - Centralized storage for all pipeline artifacts and security scan results*
+
+</div>
+
+The artifact store bucket demonstrates the organized storage structure for pipeline artifacts, with automatic encryption and versioning enabled for audit trail maintenance.
+
+<div align="center">
+
+![Encrypted Artifacts Archive](./doc/6_3_encrypted_artifacts_archive.png)
+
+*Figure 26: Encrypted Artifacts Archive - Security scan results and build artifacts with KMS encryption*
+
+</div>
+
+All artifacts are automatically encrypted using the dedicated KMS key, ensuring security compliance for stored security scan results, build artifacts, and deployment packages.
+
+### CI/CD Pipeline Execution & Security Integration
+
+The complete CI/CD workflow demonstrates end-to-end security scanning and automated deployment capabilities.
+
+<div align="center">
+
+![Successful CI/CD Pipeline Run](./doc/7_1_successful_CICD_pipeline_run.png)
+
+*Figure 27: Successful CI/CD Pipeline Execution - Complete security scanning and deployment workflow*
+
+</div>
+
+The successful pipeline execution shows all stages completing successfully, from source checkout through security scanning, staging deployment, DAST analysis, manual approval, and production deployment.
+
+<div align="center">
+
+![Runner Example DAST Scans](./doc/7_2_runner_example-DAST_scans.png)
+
+*Figure 28: DAST Security Scanning Results - OWASP ZAP penetration testing against staging environment*
+
+</div>
+
+The DAST scanning stage demonstrates comprehensive security testing against the live staging application, with OWASP ZAP performing automated penetration testing and vulnerability assessment.
+
+<div align="center">
+
+![Runner Example Production Blue-Green Deployment](./doc/7_3_runner_example-production_BLUE_GREEN_deployment.png)
+
+*Figure 29: Production Blue-Green Deployment - Zero-downtime production release with automated traffic switching*
+
+</div>
+
+The blue-green deployment implementation ensures zero-downtime production releases through automated ECS service updates and Application Load Balancer target group management.
+
+### Successful Production Deployment Verification
+
+The deployment verification confirms successful application deployment and monitoring capabilities.
+
+<div align="center">
+
+![Successful Production Deployment](./doc/8_1_successful_production_deployment.png)
+
+*Figure 30: Successful Production Deployment - Live application running in production environment*
+
+</div>
+
+The production deployment verification shows the application successfully running in the production ECS cluster with proper health checks and load balancer integration.
+
+<div align="center">
+
+![Successful Production Deployment 2](./doc/8_2_successful_production_deployment_2.png)
+
+*Figure 31: Successful Production Deployment x2 - Live application demonstrating successful full API deployment and functionality*
+
+</div>
+
+The live application interface confirms successful deployment with all application features functioning correctly in the production environment.
+
+### Security Hub Integration & Vulnerability Management
+
+The platform's security integration provides centralized vulnerability management and compliance monitoring.
+
+<div align="center">
+
+![Security Hub Centralized Vulnerability Findings](./doc/9_1_security_hub_centralized_vulnerability_findings.png)
+
+*Figure 32: Security Hub Centralized Findings - Normalized security scan results from all pipeline stages*
+
+</div>
+
+AWS Security Hub provides centralized visibility into all security findings from the multi-stage scanning process, with normalized vulnerability data from Snyk SAST, Clair SCA, and OWASP ZAP DAST tools.
+
+<div align="center">
+
+![Example SAST Finding](./doc/9_2_example_SAST_finding.png)
+
+*Figure 33: SAST Security Finding Example - Detailed vulnerability analysis with remediation guidance*
+
+</div>
+
+Individual security findings provide detailed analysis including vulnerability classification, severity assessment, and specific remediation guidance for development teams.
+
+### CloudWatch Monitoring & Observability
+
+The platform's monitoring infrastructure provides comprehensive operational visibility and security monitoring.
+
+<div align="center">
+
+![CloudWatch RASP Falco Logs](./doc/10_1_cloudwatch_RASP_falco_logs.png)
+
+*Figure 34: CloudWatch RASP Falco Logs - Runtime Application Security Protection monitoring*
+
+</div>
+
+CNCF Falco provides real-time runtime security monitoring through CloudWatch integration, detecting anomalous behavior and security threats during application execution.
+
+<div align="center">
+
+![CloudWatch Lambda Run Example](./doc/10_2_cloudwatch_lambda_run_example.png)
+
+*Figure 35: CloudWatch Lambda Execution Logs - Security data processing and normalization workflow*
+
+</div>
+
+The Lambda function execution logs demonstrate the security data processing workflow, showing successful normalization and aggregation of security scan results.
+
+<div align="center">
+
+![CloudTrail Log Group](./doc/10_3_cloudtrail_logGroup.png)
+
+*Figure 36: CloudTrail Log Group - Comprehensive audit logging for compliance and security monitoring*
+
+</div>
+
+CloudTrail integration provides comprehensive audit logging for all API activities, ensuring complete compliance tracking and security monitoring across the entire platform.
+
+<div align="center">
+
+![CloudWatch Pipeline Log Group Streams](./doc/10_4_cloudwatch_pipeline_logGroup_streams.png)
+
+*Figure 37: CloudWatch Pipeline Log Streams - Dedicated logging for each pipeline stage and security analysis*
+
+</div>
+
+The dedicated log streams provide organized logging for each pipeline component, enabling detailed troubleshooting and operational monitoring across all DevSecOps stages.
+
+### SNS Email Subscriptions & Notification System
+
+The platform's notification system ensures stakeholder awareness and approval workflows.
+
+<div align="center">
+
+![SNS Email Subscriptions](./doc/4_sns_email_subscriptions.png)
+
+*Figure 38: SNS Email Subscriptions - Multi-topic notification system for pipeline events and security alerts*
+
+</div>
+
+The SNS email subscription system provides automated notifications for pipeline state changes, security findings, manual approval requirements, and operational alerts, ensuring appropriate stakeholder engagement throughout the deployment process.
+
+---
+
+**`Deployment Success Verification:`**
+
+The complete deployment walkthrough demonstrates:
+
+- **Infrastructure Provisioning**: Successful Terraform deployment with proper resource creation and output capture
+- **Pipeline Integration**: Seamless CloudFormation deployment with automated parameter injection from Terraform outputs
+- **Security Implementation**: Comprehensive multi-stage security scanning with centralized vulnerability management
+- **Monitoring & Compliance**: Complete observability stack with audit logging and runtime security monitoring
+- **Operational Readiness**: Production-grade application deployment with zero-downtime release capabilities
+
+The AWS DevSecOps Hybrid CI/CD Factory provides enterprise-grade software delivery with integrated security, compliance, and operational monitoring, ready for immediate production use.
+
