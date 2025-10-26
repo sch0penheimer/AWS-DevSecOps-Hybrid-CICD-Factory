@@ -57,8 +57,6 @@ This project implements a fully automated Hybrid DevSecOps Factory/Platform on A
     - [SCA - Software Composition Analysis (Clair)](#sca--software-composition-analysis)
     - [DAST - Dynamic Application Security Analysis (OWASP ZAP)](#dast--dynamic-application-security-analysis)
     - [RASP - Runtime Application Security Protection (CNCF Falco)](#rasp--runtime-application-security-protection)
-    - [AWS Security Hub Integration](#aws-security-hub-integration)
-    - [IAM & Access Control](#iam--access-control)
   - [Event-Driven Architecture](#event-driven-architecture)
     - [AWS EventBridge Rules](#aws-eventbridge-rules)
     - [AWS CloudWatch Events](#aws-cloudwatch-events)
@@ -1029,9 +1027,13 @@ application-repository/
 > **Check Files**
 
 > [buildspec/1-secretsanalysis-buildspec.yml](./buildspec/1-secretsanalysis-buildspec.yml)
+>
 > [buildspec/2-snyk-sast-buildspec.yml](./buildspec/2-snyk-sast-buildspec.yml)
+>
 > [buildspec/3-clair-sca-staging-buildspec.yml](./buildspec/3-clair-sca-staging-buildspec.yml)
+>
 > [buildspec/4-owasp-zap-dast-buildspec.yml](./buildspec/4-owasp-zap-dast-buildspec.yml)
+>
 > [buildspec/5-prod-bluegreen-buildspec.yml](./buildspec/5-prod-bluegreen-buildspec.yml)
 
 <br/>
@@ -1072,6 +1074,7 @@ ProductionBlueGreenBuildProject:
 > **Check Files**
 
 > [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+>
 > [buildspec/5-prod-bluegreen-buildspec.yml](./buildspec/5-prod-bluegreen-buildspec.yml)
 
 <br/>
@@ -1079,15 +1082,246 @@ ProductionBlueGreenBuildProject:
 This approach ensures **production stability** while enabling rapid deployment cycles and immediate rollback capabilities for critical production environments.
 
 ### Security & Compliance
+
+The Security & Compliance implementation establishes comprehensive security controls and compliance monitoring throughout the DevSecOps Factory, ensuring that security is embedded at every stage of the software delivery lifecycle. This section implements **defense-in-depth security** through multiple security tools, encryption standards, and compliance frameworks.
+
 #### SSM Parameter Store
+
+AWS Systems Manager Parameter Store provides **centralized, encrypted secret management** for all sensitive configuration data used throughout the CI/CD pipeline. Every secret passed to the CloudFormation stack parameters is automatically mapped to corresponding SSM SecureString parameters.
+
+**`Parameter Mapping Strategy:`**
+
+```yaml
+#- SSM Parameters for Secure Secrets/Config Storage -#
+SSMSnykAPIKey:
+  Type: 'AWS::SSM::Parameter'
+  Properties:
+    Name: !Sub ${AWS::StackName}-Snyk-API-Key
+    Type: String 
+    Value: !Ref SnykAPIKey
+
+SSMAppURL:
+  Type: 'AWS::SSM::Parameter'
+  Properties:
+    Name: !Sub ${AWS::StackName}-App-URL
+    Type: String
+    Value: !Ref AppURLForDAST
+
+SSMDockerHubPassword:
+  Type: 'AWS::SSM::Parameter'
+  Properties:
+    Name: !Sub ${AWS::StackName}-DockerHub-Password
+    Type: String
+    Value: !Ref DockerHubPassword
+```
+
+**`CodeBuild Parameter Store Integration:`**
+
+```yaml
+EnvironmentVariables: 
+- Name: SNYK_API_KEY
+  Type: PARAMETER_STORE
+  Value: !Ref SSMSnykAPIKey
+- Name: APPLICATION_URL
+  Type: PARAMETER_STORE
+  Value: !Ref SSMAppURL
+- Name: DOCKERHUB_PASSWORD
+  Type: PARAMETER_STORE
+  Value: !Ref SSMDockerHubPassword
+```
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
 #### Encryption & KMS
+
+The platform implements **comprehensive encryption-at-rest** using a single AWS KMS symmetric key for all pipeline-related encryption, ensuring consistent security policies and simplified key management.
+
+**`Pipeline KMS Key Configuration:`**
+
+```yaml
+PipelineKMSKey:
+  Type: AWS::KMS::Key
+  Properties: 
+    Description: KMS Key for General Pipeline-Related Encryption
+    Enabled: true
+    EnableKeyRotation: true
+    KeyPolicy: 
+      Version: '2012-10-17'
+      Statement:
+      - Effect: Allow
+        Principal:
+          AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+        Action: 
+          - 'kms:Create*'
+          - 'kms:Describe*'
+          # ...additional admin permissions...
+        Resource: '*'
+      - Effect: Allow
+        Principal:
+          Service: 
+            - codepipeline.amazonaws.com
+            - codebuild.amazonaws.com
+            - !Sub logs.${AWS::Region}.amazonaws.com
+        Action:
+        - 'kms:Encrypt'
+        - 'kms:Decrypt'
+        - 'kms:ReEncrypt*'
+        - 'kms:GenerateDataKey*'
+        Resource: '*'
+```
+
+**`Encryption Scope:`**
+- **S3 Artifact Store**: All pipeline artifacts encrypted using the KMS key
+- **CodeBuild Projects**: All projects configured with KMS encryption
+
+> **Check File**
+
+> [cloudformation/codepipeline.yaml](./cloudformation/codepipeline.yaml)
+
+<br/>
+
 #### Secrets Scanning (git-secrets)
+
+Git-secrets implementation provides **credential leak detection** through pattern-based scanning of source code, preventing accidental exposure of sensitive information in the codebase.
+
+**`Key Security Commands:`**
+
+```bash
+...
+
+#- Install and configure git-secrets -#
+git secrets --register-aws
+git secrets --install
+
+#- Custom pattern detection for additional secrets -#
+git secrets --add 'password\s*=\s*.+'
+git secrets --add 'secret\s*=\s*.+'
+git secrets --add 'api[_-]?key\s*=\s*.+'
+
+git secrets --scan --recursive .
+
+...
+```
+
+> **Check File**
+
+> [buildspecs/1-secretsanalysis-buildspec.yml](./buildspecs/1-secretsanalysis-buildspec.yml)
+
+<br/>
+
 #### SAST - Static Application Security Analysis (Snyk)
+
+Snyk SAST integration provides **comprehensive static code analysis** for vulnerability detection, license compliance, and security policy enforcement during the build process.
+
+**`Key Security Commands:`**
+
+```bash
+...
+
+snyk config set api=$SNYK_API_KEY
+
+
+#- Perform code vulnerability scanning -#
+snyk code test --severity-threshold=high
+
+#- Container image vulnerability scanning -#
+snyk container test $ECR_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION --file=$DOCKERFILE_NAME --json --severity-threshold=high > snyk-results.json || echo "Snyk SAST Scan completed with findings"
+
+...
+
+```
+
+> **Check File**
+
+> [buildspecs/2-snyk-sast-buildspec.yml](./buildspecs/2-snyk-sast-buildspec.yml)
+
+<br/>
+
 #### SCA - Software Composition Analysis (Clair)
+
+Clair SCA implementation provides **container image vulnerability scanning** through comprehensive analysis of container layers and installed packages, integrated with ECR's native vulnerability scanning capabilities.
+
+**`Key Security Commands:`**
+
+```bash
+...
+
+# ECR vulnerability scan initiation
+aws ecr start-image-scan --repository-name $ECR_REPO_NAME
+
+# Retrieve scan results
+aws ecr describe-image-scan-findings --repository-name $ECR_REPO_NAME
+
+...
+
+```
+
+> **Check File**
+
+> [buildspecs/3-clair-sca-staging-buildspec.yml](./buildspecs/3-clair-sca-staging-buildspec.yml)
+
+<br/>
+
 #### DAST - Dynamic Application Security Analysis (OWASP ZAP)
+
+OWASP ZAP DAST implementation provides **runtime security testing** against live staging applications, performing comprehensive penetration testing to identify vulnerabilities in running applications.
+
+**`Key Security Commands:`**
+
+```bash
+...
+
+#- Start ZAP daemon -#
+/opt/zap/zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true > /tmp/zap.log 2>&1 &
+
+
+#- Spider the application -#
+spider_response=$(curl -s "http://localhost:8080/JSON/spider/action/scan/?url=http://$APPLICATION_URL")
+echo "Spider API Response: $spider_response"
+
+...
+
+while [ "$stat" != "100" ] && [ $counter -lt $timeout ]; do
+  stat=$(curl "http://localhost:8080/JSON/spider/view/status/?scanId=$spider_scanid" | jq -r '.status');
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Spider scan status: $stat%"
+  if [ "$stat" = "100" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Spider scan completed successfully."
+    break
+  fi
+  sleep 10;
+  counter=$((counter + 10))
+done
+
+...
+
+#- Active security scanning -#
+active_response=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=http://$APPLICATION_URL")
+echo "Active Scan API Response: $active_response"
+
+...Same Loop
+
+...
+
+```
+
+> **Check File**
+
+> [buildspecs/4-owasp-zap-dast-buildspec.yml](./buildspecs/4-owasp-zap-dast-buildspec.yml)
+
+<br/>
+
 #### RASP - Runtime Application Security Protection (CNCF Falco)
-#### AWS Security Hub Integration
-#### IAM & Access Control
+CNCF Falco provides **runtime security monitoring** for containerized applications, detecting anomalous behavior and security threats during application execution. Falco is deployed using the **<ins>sidecar pattern<ins>** alongside application containers in ECS task definitions.
+
+**`Sidecar Deployment Pattern:`**
+
+Falco is implemented as a sidecar container within ECS task definitions, providing real-time security monitoring without modifying application code. The detailed Falco sidecar configuration and integration with application containers is covered in the [Compute Module - Task Definitions](#task-definitions) section.
+
+The RASP implementation ensures **continuous security monitoring** throughout the application lifecycle, providing real-time threat detection and incident response capabilities for production workloads.
 
 ### Event-Driven Architecture
 #### AWS EventBridge Rules
